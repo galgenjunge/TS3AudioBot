@@ -62,7 +62,6 @@ namespace TS3AudioBot
 		public PlayManager PlayManager { get; set; }
 		public IVoiceTarget TargetManager { get; private set; }
 		public IPlayerConnection PlayerConnection { get; private set; }
-		public Filter Filter { get; private set; }
 
 		public Bot(int id, ConfBot config, BotInjector injector)
 		{
@@ -76,12 +75,6 @@ namespace TS3AudioBot
 			Log.Info("Bot \"{0}\" connecting to \"{1}\"", config.Name, config.Connect.Address);
 
 			// Registering config changes
-			config.Commands.Matcher.Changed += (s, e) =>
-			{
-				var newMatcher = Filter.GetFilterByName(e.NewValue);
-				if (newMatcher.Ok)
-					Filter.Current = newMatcher.Value;
-			};
 			config.Language.Changed += (s, e) =>
 			{
 				var langResult = LocalizationManager.LoadLanguage(e.NewValue, true);
@@ -102,7 +95,6 @@ namespace TS3AudioBot
 			Injector.RegisterType<IPlayerConnection>();
 			Injector.RegisterType<IVoiceTarget>();
 			Injector.RegisterType<Ts3BaseFunctions>();
-			Injector.RegisterType<Filter>();
 
 			Injector.RegisterModule(this);
 			Injector.RegisterModule(config);
@@ -117,10 +109,6 @@ namespace TS3AudioBot
 				Injector.RegisterModule(historyManager = new HistoryManager(config.History), x => x.Initialize());
 			Injector.RegisterModule(new PlayManager());
 			Injector.RegisterModule(teamspeakClient.TargetPipe);
-
-			var filter = Filter.GetFilterByName(config.Commands.Matcher);
-			Injector.RegisterModule(new Filter { Current = filter.OkOr(Filter.DefaultAlgorithm) });
-			if (!filter.Ok) Log.Warn("Unknown command_matcher config. Using default.");
 
 			if (!Injector.AllResolved())
 			{
@@ -373,7 +361,7 @@ namespace TS3AudioBot
 		{
 			Log.Debug("Calling script (skipRights:{0}, answer:{1}): {2}", skipRights, answer, command);
 
-			info.AddDynamicObject(new CallerInfo(command, false)
+			info.AddModule(new CallerInfo(command, false)
 			{
 				SkipRightsChecks = skipRights,
 				CommandComplexityMax = config.Commands.CommandComplexity,
@@ -410,8 +398,9 @@ namespace TS3AudioBot
 		private ExecutionInformation CreateExecInfo(InvokerData invoker = null, UserSession session = null)
 		{
 			var info = new ExecutionInformation(Injector.CloneRealm<DependencyRealm>());
-			info.AddDynamicObject(invoker ?? InvokerData.Anonymous);
-			info.AddDynamicObject(session ?? new AnonymousSession());
+			info.AddModule(invoker ?? InvokerData.Anonymous);
+			info.AddModule(session ?? new AnonymousSession());
+			info.AddModule(Filter.GetFilterByNameOrDefault(config.Commands.Matcher));
 			return info;
 		}
 

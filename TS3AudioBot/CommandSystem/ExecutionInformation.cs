@@ -9,34 +9,42 @@
 
 namespace TS3AudioBot.CommandSystem
 {
+	using Algorithm;
 	using Dependency;
 	using System;
 
-	public class ExecutionInformation
+	public class ExecutionInformation : IInjector
 	{
+		public IInjector ParentInjector { get; set; }
 		private readonly IInjector dynamicObjects;
 
-		public ExecutionInformation() : this(new BasicInjector()) { }
+		public ExecutionInformation() : this(NullInjector.Instance) { }
 
-		public ExecutionInformation(IInjector injector)
+		public ExecutionInformation(IInjector parent)
 		{
-			dynamicObjects = injector;
-			AddDynamicObject(this);
+			ParentInjector = parent ?? throw new ArgumentNullException(nameof(parent));
+			dynamicObjects = new BasicInjector();
+			AddModule(this);
 		}
 
-		public void AddDynamicObject(object obj) => dynamicObjects.AddModule(obj);
-
-		public bool TryGet<T>(out T obj)
+		public object GetModule(Type type)
 		{
-			var ok = TryGet(typeof(T), out var oobj);
-			if (ok) obj = (T)oobj;
-			else obj = default;
-			return ok;
+			var obj = dynamicObjects.GetModule(type);
+			if (obj != null) return obj;
+			obj = ParentInjector.GetModule(type);
+			return obj;
 		}
-		public bool TryGet(Type t, out object obj)
+
+		public void AddModule(object obj) => dynamicObjects.AddModule(obj);
+	}
+
+	public static class CommandSystemExtensions
+	{
+		public static IFilterAlgorithm GetFilter(this IInjector injector)
 		{
-			obj = dynamicObjects.GetModule(t);
-			return obj != null;
+			if (injector.TryGet<IFilterAlgorithm>(out var filter))
+				return filter;
+			return Filter.DefaultFilter;
 		}
 	}
 }

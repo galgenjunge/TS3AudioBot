@@ -67,9 +67,9 @@ namespace TS3AudioBot.Dependency
 		public bool TryInject(object obj) => TryResolve(obj, InitState.SetOnly, false);
 
 		// Maybe in future update child realm when parent gets updated
-		public T CloneRealm<T>() where T : DependencyRealm, new()
+		public TNew CloneRealm<TNew>() where TNew : DependencyRealm, new()
 		{
-			var child = new T();
+			var child = new TNew();
 			child.modules.AddRange(modules);
 			child.registeredTypes.UnionWith(registeredTypes);
 			return child;

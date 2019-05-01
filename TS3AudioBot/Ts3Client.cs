@@ -290,7 +290,7 @@ namespace TS3AudioBot
 			var refreshResult = RefreshClientBuffer(false);
 			if (!refreshResult)
 				return refreshResult.Error;
-			var clients = Algorithm.Filter.DefaultAlgorithm.Filter(
+			var clients = Algorithm.Filter.DefaultFilter.Filter(
 				clientbuffer.Select(cb => new KeyValuePair<string, ClientList>(cb.Name, cb)), name).ToArray();
 			if (clients.Length <= 0)
 				return new LocalStr(strings.error_ts_no_client_found);

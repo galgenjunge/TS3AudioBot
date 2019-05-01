@@ -23,6 +23,7 @@ namespace TS3AudioBot.Web.Api
 	using System.IO;
 	using System.Net;
 	using System.Text;
+	using TS3AudioBot.Algorithm;
 
 	public sealed class WebApi : WebComponent
 	{
@@ -88,15 +89,15 @@ namespace TS3AudioBot.Web.Api
 			var command = CommandManager.CommandSystem.AstToCommandResult(ast);
 
 			var execInfo = new ExecutionInformation(CoreInjector.CloneRealm<CoreInjector>());
-			execInfo.AddDynamicObject(new CallerInfo(apirequest, true)
+			execInfo.AddModule(new CallerInfo(apirequest, true)
 			{
 				SkipRightsChecks = false,
 				CommandComplexityMax = config.CommandComplexity,
 				IsColor = false,
 			});
-			execInfo.AddDynamicObject(invoker);
-			execInfo.AddDynamicObject(apiCallDummy);
-			// todo creating token usersessions is now possible
+			execInfo.AddModule(invoker);
+			execInfo.AddModule(apiCallDummy);
+			execInfo.AddModule(Filter.GetFilterByNameOrDefault(config.Matcher));
 
 			try
 			{

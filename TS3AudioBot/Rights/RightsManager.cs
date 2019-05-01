@@ -11,6 +11,7 @@ namespace TS3AudioBot.Rights
 {
 	using Audio;
 	using CommandSystem;
+	using Dependency;
 	using Config;
 	using Helper;
 	using Matchers;
@@ -180,7 +181,7 @@ namespace TS3AudioBot.Rights
 			foreach (var rule in execCtx.MatchingRules)
 				execCtx.DeclAdd.UnionWith(rule.DeclAdd);
 
-			info.AddDynamicObject(execCtx);
+			info.AddModule(execCtx);
 
 			return execCtx;
 		}

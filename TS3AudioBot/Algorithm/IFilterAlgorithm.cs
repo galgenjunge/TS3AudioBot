@@ -18,12 +18,9 @@ namespace TS3AudioBot.Algorithm
 		IEnumerable<KeyValuePair<string, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> list, string filter);
 	}
 
-	public sealed class Filter
+	public static class Filter
 	{
-		public IFilterAlgorithm Current { get; set; }
-
-		public static IFilterAlgorithm DefaultAlgorithm { get; } = Ic3Filter.Instance;
-		public static Filter DefaultFilter { get; } = new Filter { Current = DefaultAlgorithm };
+		public static IFilterAlgorithm DefaultFilter { get; } = Ic3Filter.Instance;
 
 		public static R<IFilterAlgorithm> GetFilterByName(string filter)
 		{
@@ -37,6 +34,8 @@ namespace TS3AudioBot.Algorithm
 			default: return R.Err;
 			}
 		}
+
+		public static IFilterAlgorithm GetFilterByNameOrDefault(string filter) => GetFilterByName(filter).OkOr(DefaultFilter);
 	}
 
 	/// <summary>Interleaved continuous character chain.</summary>
