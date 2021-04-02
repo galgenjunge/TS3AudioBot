@@ -7,25 +7,25 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Nett;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+
 namespace TS3AudioBot.Config
 {
-	using Helper;
-	using Nett;
-	using System;
-	using System.Collections.Generic;
-	using System.Diagnostics;
-
 	[DebuggerDisplay("dyntable:{Key}")]
-	public class ConfigDynamicTable<T> : ConfigEnumerable, IDynamicTable where T : ConfigEnumerable, new()
+	public class ConfigDynamicTable<T> : ConfigEnumerable, IDynamicTable where T : ConfigPart
 	{
-		private readonly Dictionary<string, T> dynamicTables;
+		private readonly Dictionary<string, T> dynamicTables = new Dictionary<string, T>();
+		private readonly Func<string, T> createFactory;
 
-		public ConfigDynamicTable()
+		public ConfigDynamicTable(Func<string, T> createFactory)
 		{
-			Util.Init(out dynamicTables);
+			this.createFactory = createFactory;
 		}
 
-		public override void FromToml(TomlObject tomlObject)
+		public override void FromToml(TomlObject? tomlObject)
 		{
 			base.FromToml(tomlObject);
 
@@ -38,7 +38,7 @@ namespace TS3AudioBot.Config
 
 				foreach (var child in tomlTable.Rows)
 				{
-					var childConfig = Create<T>(child.Key, this, child.Value);
+					var childConfig = Init(createFactory(child.Key), this, child.Value);
 					dynamicTables.Add(child.Key, childConfig);
 				}
 			}
@@ -46,27 +46,33 @@ namespace TS3AudioBot.Config
 
 		public override IEnumerable<ConfigPart> GetAllChildren() => GetAllItems();
 
-		public override ConfigPart GetChild(string key) => GetItem(key);
+		public override ConfigPart? GetChild(string key) => GetItem(key);
 
 		public ConfigPart GetOrCreateChild(string key) => GetOrCreateItem(key);
 
 		public override void Derive(ConfigPart derived)
 		{
-			// TODO
+			// TODO (or rather probably ignore, as deriving is a bit ambiguous)
 		}
 
-		public T GetItem(string key) => dynamicTables.TryGetValue(key, out var item) ? item : null;
+		public T? GetItem(string key) => dynamicTables.TryGetValue(key, out var item) ? item : null;
 
 		public IEnumerable<T> GetAllItems() => dynamicTables.Values;
 
 		public T CreateItem(string key)
 		{
-			var childConfig = Create<T>(key, this, null);
+			var childConfig = Init(createFactory(key), this, null);
 			dynamicTables.Add(key, childConfig);
 			return childConfig;
 		}
 
 		public T GetOrCreateItem(string key) => GetItem(key) ?? CreateItem(key);
+
+		public void RemoveItem(string key)
+		{
+			dynamicTables.Remove(key);
+			TomlObject.Remove(key);
+		}
 	}
 
 	public interface IDynamicTable

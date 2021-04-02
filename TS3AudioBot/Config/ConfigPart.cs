@@ -7,39 +7,42 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Nett;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using TS3AudioBot.Helper;
+using static TS3AudioBot.Helper.TomlTools;
+
 namespace TS3AudioBot.Config
 {
-	using Helper;
-	using Nett;
-	using Newtonsoft.Json;
-	using System;
-	using System.Collections.Generic;
-	using System.Diagnostics;
-	using System.Linq;
-	using static Helper.TomlTools;
-
 	[DebuggerDisplay("unknown:{Key}")]
 	public abstract class ConfigPart : IJsonSerializable
 	{
 		protected static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
-		public string Documentation { get; protected set; }
+		public string? Documentation { get; protected set; }
 		public string Key { get; protected set; }
 		// must be a field otherwise it will be found as a child for ConfigTable
-		public ConfigEnumerable Parent;
+		public ConfigEnumerable? Parent;
 
+#pragma warning disable CS8618 // !NRT, all ConfigParts are create via Create<T>
 		protected ConfigPart() { }
+#pragma warning restore CS8618
 		protected ConfigPart(string key)
 		{
 			Key = key;
 		}
 
 		public abstract bool ExpectsString { get; }
-		public abstract void FromToml(TomlObject tomlObject);
+		public abstract void FromToml(TomlObject? tomlObject);
 		public abstract void ToToml(bool writeDefaults, bool writeDocumentation);
 		public abstract void Derive(ConfigPart derived);
 		public abstract E<string> FromJson(JsonReader reader);
 		public abstract void ToJson(JsonWriter writer);
+		public abstract void ClearEvents();
 
 		protected void CreateDocumentation(TomlObject tomlObject)
 		{
@@ -57,6 +60,8 @@ namespace TS3AudioBot.Config
 
 		public IEnumerable<ConfigPart> ByPath(string path)
 		{
+			if (string.IsNullOrEmpty(path))
+				return new[] { this };
 			var pathM = path.AsMemory();
 			return ProcessIdentifier(pathM);
 		}
@@ -71,7 +76,7 @@ namespace TS3AudioBot.Config
 			{
 			case '*':
 				{
-					var rest = pathM.Slice(1);
+					var rest = pathM[1..];
 					if (rest.IsEmpty)
 						return GetAllSubItems();
 
@@ -80,15 +85,15 @@ namespace TS3AudioBot.Config
 					else if (IsDot(rest.Span))
 						return GetAllSubItems().SelectMany(x => x.ProcessDot(rest));
 					else
-						throw new ArgumentException("Invalid expression after wildcard", nameof(path));
+						throw new ArgumentException("Invalid expression after wildcard", nameof(pathM));
 				}
 
 			case '[':
-				throw new ArgumentException("Invalid array open bracket", nameof(path));
+				throw new ArgumentException("Invalid array open bracket", nameof(pathM));
 			case ']':
-				throw new ArgumentException("Invalid array close bracket", nameof(path));
+				throw new ArgumentException("Invalid array close bracket", nameof(pathM));
 			case '.':
-				throw new ArgumentException("Invalid dot", nameof(path));
+				throw new ArgumentException("Invalid dot", nameof(pathM));
 
 			default:
 				{
@@ -99,14 +104,14 @@ namespace TS3AudioBot.Config
 					{
 						// todo allow in future
 						if (path[i] == '*')
-							throw new ArgumentException("Invalid wildcard position", nameof(path));
+							throw new ArgumentException("Invalid wildcard position", nameof(pathM));
 
-						var currentSub = path.Slice(i);
+						var currentSub = path[i..];
 						if (!IsIdentifier(currentSub)) // if (!IsName)
 						{
 							cont = true;
-							subItemName = path.Slice(0, i);
-							rest = pathM.Slice(i);
+							subItemName = path[..i];
+							rest = pathM[i..];
 							break;
 						}
 					}
@@ -121,7 +126,7 @@ namespace TS3AudioBot.Config
 						else if (IsDot(rest.Span))
 							return item.ProcessDot(rest);
 						else
-							throw new ArgumentException("Invalid expression name identifier", nameof(path));
+							throw new ArgumentException("Invalid expression name identifier", nameof(pathM));
 					}
 					return new[] { item };
 				}
@@ -132,14 +137,14 @@ namespace TS3AudioBot.Config
 		{
 			var path = pathM.Span;
 			if (path[0] != '[')
-				throw new ArgumentException("Expected array open breacket", nameof(path));
+				throw new ArgumentException("Expected array open breacket", nameof(pathM));
 			for (int i = 1; i < path.Length; i++)
 			{
 				if (path[i] == ']')
 				{
 					if (i == 0)
-						throw new ArgumentException("Empty array indexer", nameof(path));
-					var indexer = path.Slice(1, i - 1);
+						throw new ArgumentException("Empty array indexer", nameof(pathM));
+					var indexer = path[1..i];
 					var rest = pathM.Slice(i + 1);
 					bool cont = rest.Length > 0;
 
@@ -154,7 +159,7 @@ namespace TS3AudioBot.Config
 							else if (IsDot(rest.Span))
 								return ret.SelectMany(x => x.ProcessDot(rest));
 							else
-								throw new ArgumentException("Invalid expression after array indexer", nameof(path));
+								throw new ArgumentException("Invalid expression after array indexer", nameof(pathM));
 						}
 
 						return ret;
@@ -172,29 +177,29 @@ namespace TS3AudioBot.Config
 							else if (IsDot(rest.Span))
 								return ret.ProcessDot(rest);
 							else
-								throw new ArgumentException("Invalid expression after array indexer", nameof(path));
+								throw new ArgumentException("Invalid expression after array indexer", nameof(pathM));
 						}
 						return new[] { ret };
 					}
 				}
 			}
-			throw new ArgumentException("Missing array close bracket", nameof(path));
+			throw new ArgumentException("Missing array close bracket", nameof(pathM));
 		}
 
 		private IEnumerable<ConfigPart> ProcessDot(ReadOnlyMemory<char> pathM)
 		{
 			var path = pathM.Span;
 			if (!IsDot(path))
-				throw new ArgumentException("Expected dot", nameof(path));
+				throw new ArgumentException("Expected dot", nameof(pathM));
 
-			var rest = pathM.Slice(1);
+			var rest = pathM[1..];
 			if (!IsIdentifier(rest.Span))
-				throw new ArgumentException("Expected identifier after dot", nameof(path));
+				throw new ArgumentException("Expected identifier after dot", nameof(pathM));
 
 			return ProcessIdentifier(rest);
 		}
 
-		private ConfigPart GetArrayItemByIndex(ReadOnlySpan<char> index)
+		private ConfigPart? GetArrayItemByIndex(ReadOnlySpan<char> index)
 		{
 			var indexNum = new string(index.ToArray());
 
@@ -218,7 +223,7 @@ namespace TS3AudioBot.Config
 			return Enumerable.Empty<ConfigPart>();
 		}
 
-		private ConfigPart GetSubItemByName(ReadOnlySpan<char> name)
+		private ConfigPart? GetSubItemByName(ReadOnlySpan<char> name)
 		{
 			var indexNum = new string(name.ToArray());
 			if (this is ConfigEnumerable table)

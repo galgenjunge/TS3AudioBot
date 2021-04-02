@@ -7,28 +7,29 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using TSLib;
+using TSLib.Audio;
+using TSLib.Full;
+using TSLib.Helper;
+
 namespace TS3AudioBot.Audio
 {
-	using Helper;
-	using System;
-	using System.Collections.Generic;
-	using System.Linq;
-	using TS3Client;
-	using TS3Client.Audio;
-	using TS3Client.Full;
-
 	internal class CustomTargetPipe : IVoiceTarget, IAudioPassiveConsumer
 	{
-		public TargetSendMode SendMode { get; set; } = TargetSendMode.None;
+		public TargetSendMode SendMode { get; set; } = TargetSendMode.Voice;
 		public ulong GroupWhisperTargetId { get; private set; }
 		public GroupWhisperType GroupWhisperType { get; private set; }
 		public GroupWhisperTarget GroupWhisperTarget { get; private set; }
+		public bool Alone { get; set; }
 
-		public IReadOnlyCollection<ushort> WhisperClients
+		public IReadOnlyCollection<ClientId> WhisperClients
 		{
 			get { lock (subscriptionLockObj) { return clientSubscriptionsSetup.ToArray(); } }
 		}
-		public IReadOnlyCollection<ulong> WhisperChannel
+		public IReadOnlyCollection<ChannelId> WhisperChannel
 		{
 			get { lock (subscriptionLockObj) { return channelSubscriptionsSetup.Keys.ToArray(); } }
 		}
@@ -41,6 +42,8 @@ namespace TS3AudioBot.Audio
 				{
 				case TargetSendMode.None:
 					return false;
+				case TargetSendMode.Voice:
+					return !Alone;
 				case TargetSendMode.Whisper:
 					UpdatedSubscriptionCache();
 					return channelSubscriptionsCache.Length > 0 || clientSubscriptionsCache.Length > 0;
@@ -50,24 +53,22 @@ namespace TS3AudioBot.Audio
 			}
 		}
 
-		private readonly Dictionary<ulong, bool> channelSubscriptionsSetup;
-		private readonly HashSet<ushort> clientSubscriptionsSetup;
-		private ulong[] channelSubscriptionsCache;
-		private ushort[] clientSubscriptionsCache;
+		private readonly Dictionary<ChannelId, bool> channelSubscriptionsSetup = new Dictionary<ChannelId, bool>();
+		private readonly HashSet<ClientId> clientSubscriptionsSetup = new HashSet<ClientId>();
+		private ChannelId[] channelSubscriptionsCache = Array.Empty<ChannelId>();
+		private ClientId[] clientSubscriptionsCache = Array.Empty<ClientId>();
 		private bool subscriptionSetupChanged;
 		private readonly object subscriptionLockObj = new object();
 
-		private readonly Ts3FullClient client;
+		private readonly TsFullClient client;
 
-		public CustomTargetPipe(Ts3FullClient client)
+		public CustomTargetPipe(TsFullClient client)
 		{
 			this.client = client;
-			Util.Init(out channelSubscriptionsSetup);
-			Util.Init(out clientSubscriptionsSetup);
 			subscriptionSetupChanged = true;
 		}
 
-		public void Write(Span<byte> data, Meta meta)
+		public void Write(Span<byte> data, Meta? meta)
 		{
 			UpdatedSubscriptionCache();
 
@@ -86,7 +87,7 @@ namespace TS3AudioBot.Audio
 				client.SendAudioGroupWhisper(data, codec, GroupWhisperType, GroupWhisperTarget, GroupWhisperTargetId);
 				break;
 			default:
-				throw new ArgumentOutOfRangeException(nameof(SendMode), "Unknown send target");
+				throw Tools.UnhandledDefault(SendMode);
 			}
 		}
 
@@ -99,7 +100,7 @@ namespace TS3AudioBot.Audio
 			GroupWhisperTargetId = targetId;
 		}
 
-		public void WhisperChannelSubscribe(bool temp, params ulong[] channels)
+		public void WhisperChannelSubscribe(bool temp, params ChannelId[] channels)
 		{
 			lock (subscriptionLockObj)
 			{
@@ -118,7 +119,7 @@ namespace TS3AudioBot.Audio
 			}
 		}
 
-		public void WhisperChannelUnsubscribe(bool temp, params ulong[] channels)
+		public void WhisperChannelUnsubscribe(bool temp, params ChannelId[] channels)
 		{
 			lock (subscriptionLockObj)
 			{
@@ -140,7 +141,7 @@ namespace TS3AudioBot.Audio
 			}
 		}
 
-		public void WhisperClientSubscribe(params ushort[] userId)
+		public void WhisperClientSubscribe(params ClientId[] userId)
 		{
 			lock (subscriptionLockObj)
 			{
@@ -149,7 +150,7 @@ namespace TS3AudioBot.Audio
 			}
 		}
 
-		public void WhisperClientUnsubscribe(params ushort[] userId)
+		public void WhisperClientUnsubscribe(params ClientId[] userId)
 		{
 			lock (subscriptionLockObj)
 			{
@@ -162,7 +163,7 @@ namespace TS3AudioBot.Audio
 		{
 			lock (subscriptionLockObj)
 			{
-				ulong[] removeList = channelSubscriptionsSetup
+				var removeList = channelSubscriptionsSetup
 					.Where(kvp => kvp.Value)
 					.Select(kvp => kvp.Key)
 					.ToArray();

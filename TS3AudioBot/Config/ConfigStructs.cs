@@ -7,12 +7,15 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Nett;
+using System;
+using System.Collections.Generic;
+using TS3AudioBot.CommandSystem.Text;
+using TS3AudioBot.Helper;
+using TS3AudioBot.ResourceFactories.Youtube;
+
 namespace TS3AudioBot.Config
 {
-	using CommandSystem.Text;
-	using Nett;
-	using System;
-
 	public partial class ConfRoot : ConfigTable
 	{
 		public ConfBot Bot { get; } = Create<ConfBot>("bot",
@@ -33,8 +36,13 @@ namespace TS3AudioBot.Config
 	public class ConfConfigs : ConfigTable
 	{
 		//public ConfigValue<string> RootPath { get; } = new ConfigValue<string>("root_path", "."); // TODO enable when done
-		public ConfigValue<string> BotsPath { get; } = new ConfigValue<string>("bots_path", "Bots",
+		public ConfigValue<string> BotsPath { get; } = new ConfigValue<string>("bots_path", "bots",
 			"Path to a folder where the configuration files for each bot template will be stored.");
+		public ConfigValue<bool> SendStats { get; } = new ConfigValue<bool>("send_stats", true,
+			"Enable to contribute to the global stats tracker to help us improve our service.\n" +
+			"We do NOT send/store any IPs, identifiable information or logs for this.\n" +
+			"If you want to check how a stats packet looks like you can run the bot with 'TS3AudioBot --stats-example'.\n" +
+			"To disable contributing without config you can run the bot with 'TS3AudioBot --stats-disabled'. This will ignore the config value.");
 	}
 
 	public class ConfDb : ConfigTable
@@ -47,6 +55,18 @@ namespace TS3AudioBot.Config
 	{
 		public ConfPath Media { get; } = Create<ConfPath>("media",
 			"The default path to look for local resources.");
+		public ConfResolverYoutube Youtube { get; } = Create<ConfResolverYoutube>("youtube");
+	}
+
+	public class ConfResolverYoutube : ConfigTable
+	{
+		public ConfigValue<LoaderPriority> ResolverPriority { get; } = new ConfigValue<LoaderPriority>(
+			"prefer_resolver", LoaderPriority.Internal, "Changes how to try to resolve youtube songs\n" +
+			" - youtubedl : uses youtube-dl only\n" +
+			" - internal : uses the internal resolver, then youtube-dl");
+		public ConfigValue<string> ApiKey { get; } = new ConfigValue<string>("youtube_api_key", "",
+			"Set your own youtube api key to keep using the old youtube factory loader.\n" +
+			"This feature is unsupported and may break at any time");
 	}
 
 	public class ConfTools : ConfigTable
@@ -72,10 +92,8 @@ namespace TS3AudioBot.Config
 
 	public class ConfPlugins : ConfigTable
 	{
-		public ConfigValue<string> Path { get; } = new ConfigValue<string>("path", "Plugins",
+		public ConfigValue<string> Path { get; } = new ConfigValue<string>("path", "plugins",
 			"The path to the plugins folder.");
-		public ConfigValue<bool> WriteStatusFiles { get; } = new ConfigValue<bool>("write_status_files", false,
-			"Write to .status files to store a plugin enable status persistently and restart them on launch."); // TODO deprecate
 
 		public ConfPluginsLoad Load { get; } = Create<ConfPluginsLoad>("load");
 	}
@@ -87,7 +105,7 @@ namespace TS3AudioBot.Config
 
 	public class ConfWeb : ConfigTable
 	{
-		public ConfigArray<string> Hosts { get; } = new ConfigArray<string>("hosts", new[] { "localhost", "127.0.0.1" },
+		public ConfigArray<string> Hosts { get; } = new ConfigArray<string>("hosts", new[] { "*" },
 			"An array of all urls the web api should be possible to be accessed with.");
 		public ConfigValue<ushort> Port { get; } = new ConfigValue<ushort>("port", 58913,
 			"The port for the web server.");
@@ -100,11 +118,14 @@ namespace TS3AudioBot.Config
 	{
 		public ConfigValue<bool> Enabled { get; } = new ConfigValue<bool>("enabled", true,
 			"If you want to enable the web api.");
+		public ConfigValue<int> CommandComplexity { get; } = new ConfigValue<int>("command_complexity", 64,
+			"Limits the maximum command complexity to prevent endless loops.");
+		public ConfigValue<string> Matcher { get; } = new ConfigValue<string>("matcher", "exact", "See: bot.commands.matcher");
 	}
 
 	public class ConfWebInterface : ConfigTable
 	{
-		public ConfigValue<bool> Enabled { get; } = new ConfigValue<bool>("enabled", false,
+		public ConfigValue<bool> Enabled { get; } = new ConfigValue<bool>("enabled", true,
 			"If you want to enable the webinterface.");
 		public ConfigValue<string> Path { get; } = new ConfigValue<string>("path", "",
 			"The webinterface folder to host. Leave empty to let the bot look for default locations.");
@@ -127,6 +148,7 @@ namespace TS3AudioBot.Config
 
 		public ConfCommands Commands { get; } = Create<ConfCommands>("commands");
 		public ConfConnect Connect { get; } = Create<ConfConnect>("connect");
+		public ConfReconnect Reconnect { get; } = Create<ConfReconnect>("reconnect");
 		public ConfAudio Audio { get; } = Create<ConfAudio>("audio");
 		public ConfPlaylists Playlists { get; } = Create<ConfPlaylists>("playlists");
 		public ConfHistory History { get; } = Create<ConfHistory>("history");
@@ -149,6 +171,15 @@ namespace TS3AudioBot.Config
 			"Limits the split count for long messages. When for example set to 1 the message will simply be trimmed to one message.");
 		public ConfigValue<bool> Color { get; } = new ConfigValue<bool>("color", true,
 			"Enables colors and text highlights for respones.");
+		public ConfigValue<int> CommandComplexity { get; } = new ConfigValue<int>("command_complexity", 64,
+			"Limits the maximum command complexity to prevent endless loops.");
+
+		public ConfCommandsAlias Alias { get; } = Create<ConfCommandsAlias>("alias");
+	}
+
+	public class ConfCommandsAlias : ConfigDynamicTable<ConfigValue<string>>
+	{
+		public ConfCommandsAlias() : base(key => new ConfigValue<string>(key, "")) { }
 	}
 
 	public class ConfConnect : ConfigTable
@@ -156,8 +187,8 @@ namespace TS3AudioBot.Config
 		public ConfigValue<string> Address { get; } = new ConfigValue<string>("address", "",
 			"The address, ip or nickname (and port; default: 9987) of the TeamSpeak3 server");
 		public ConfigValue<string> Channel { get; } = new ConfigValue<string>("channel", "",
-			"Default channel when connecting. Use a channel path or '/<id>'.\n" +
-			"Examples: 'Home/Lobby', '/5', 'Home/Afk \\\\/ Not Here'.");
+			"Default channel when connecting. Use a channel path or \"/<id>\".\n" +
+			"Examples: \"Home/Lobby\", \"/5\", \"Home/Afk \\\\/ Not Here\".");
 		public ConfigValue<string> Badges { get; } = new ConfigValue<string>("badges", "",
 			"The client badges. You can set a comma seperated string with max three GUID's. Here is a list: http://yat.qa/ressourcen/abzeichen-badges/");
 		public ConfigValue<string> Name { get; } = new ConfigValue<string>("name",
@@ -170,6 +201,16 @@ namespace TS3AudioBot.Config
 		public ConfTsVersion ClientVersion { get; } = Create<ConfTsVersion>("client_version",
 			"Overrides the displayed version for the ts3 client. Leave empty for default.");
 		public ConfIdentity Identity { get; } = Create<ConfIdentity>("identity");
+	}
+
+	public class ConfReconnect : ConfigTable
+	{
+		public ConfigArray<string> OnTimeout { get; } = new ConfigArray<string>("ontimeout", new[] { "1s", "2s", "5s", "10s", "30s", "1m", "5m", "repeat last" }) { Validator = ConfTimeExtensions.ValidateTime };
+		public ConfigArray<string> OnKick { get; } = new ConfigArray<string>("onkick", Array.Empty<string>()) { Validator = ConfTimeExtensions.ValidateTime };
+		public ConfigArray<string> OnBan { get; } = new ConfigArray<string>("onban", Array.Empty<string>()) { Validator = ConfTimeExtensions.ValidateTime };
+		public ConfigArray<string> OnError { get; } = new ConfigArray<string>("onerror", new[] { "30s", "repeat last" }) { Validator = ConfTimeExtensions.ValidateTime };
+		public ConfigArray<string> OnShutdown { get; } = new ConfigArray<string>("onshutdown", new[] { "5m" }) { Validator = ConfTimeExtensions.ValidateTime };
+		//public ConfigValue<int> MaxReconnect { get; } = new ConfigValue<int>("max_combined_reconnects", -1, "Each reconnect kind has an own counter and resets when ");
 	}
 
 	public class ConfIdentity : ConfigTable
@@ -189,7 +230,7 @@ namespace TS3AudioBot.Config
 			"When a new song starts the volume will be trimmed to between min and max.\n" +
 			"When the current volume already is between min and max nothing will happen.\n" +
 			"To completely or partially disable this feature, set min to 0 and/or max to 100.");
-		public ConfigValue<float> MaxUserVolume { get; } = new ConfigValue<float>("max_user_volume", 30,
+		public ConfigValue<float> MaxUserVolume { get; } = new ConfigValue<float>("max_user_volume", 100,
 			"The maximum volume a normal user can request. Only user with the 'ts3ab.admin.volume' permission can request higher volumes.");
 		public ConfigValue<int> Bitrate { get; } = new ConfigValue<int>("bitrate", 48,
 			"Specifies the bitrate (in kbps) for sending audio.\n" +
@@ -206,17 +247,14 @@ namespace TS3AudioBot.Config
 	{
 		protected override TomlTable.TableTypes TableType => TomlTable.TableTypes.Inline;
 
-		public ConfigValue<float> Default { get; } = new ConfigValue<float>("default", 10);
-		public ConfigValue<float> Min { get; } = new ConfigValue<float>("min", 10);
-		public ConfigValue<float> Max { get; } = new ConfigValue<float>("max", 50);
+		public ConfigValue<float> Default { get; } = new ConfigValue<float>("default", 50);
+		public ConfigValue<float> Min { get; } = new ConfigValue<float>("min", 25);
+		public ConfigValue<float> Max { get; } = new ConfigValue<float>("max", 75);
 	}
 
 	public class ConfPlaylists : ConfigTable
 	{
-		protected override TomlTable.TableTypes TableType => TomlTable.TableTypes.Inline;
-
-		public ConfigValue<string> Path { get; } = new ConfigValue<string>("path", "Playlists",
-			"Path to the folder where playlist files will be saved.");
+		//public ConfigValue<int> MaxItemCount { get; } = new ConfigValue<int>("max_item_count", 1000); // TODO
 	}
 
 	public class ConfHistory : ConfigTable
@@ -227,6 +265,11 @@ namespace TS3AudioBot.Config
 			"Whether or not deleted history ids should be filled up with new songs.");
 	}
 
+	public class ConfData : ConfigTable
+	{
+		//public ConfigValue<string> MaxItemCount { get; } = new ConfigValue<string>("disk_data", "1M"); // TODO
+	}
+
 	public class ConfEvents : ConfigTable
 	{
 		public ConfigValue<string> OnConnect { get; } = new ConfigValue<string>("onconnect", "",
@@ -235,9 +278,21 @@ namespace TS3AudioBot.Config
 			"Called when the bot gets disconnected.");
 		public ConfigValue<string> OnIdle { get; } = new ConfigValue<string>("onidle", "",
 			"Called when the bot does not play anything for a certain amount of time.");
-		public ConfigValue<TimeSpan> IdleTime { get; } = new ConfigValue<TimeSpan>("idletime", TimeSpan.FromMinutes(5),
+		public ConfigValue<TimeSpan> IdleDelay { get; } = new ConfigValue<TimeSpan>("idletime", TimeSpan.Zero,
 			"Specifies how long the bot has to be idle until the 'onidle' event gets fired.\n" +
-			"You can specify the time in the ISO-8601 format with quotation marks \"PT30S\" or like: 15s, 1h, 3m30s");
+			"You can specify the time in the ISO-8601 format \"PT30S\" or like: 15s, 1h, 3m30s");
+		public ConfigValue<string> OnAlone { get; } = new ConfigValue<string>("onalone", "",
+			"Called when the last client leaves the channel of the bot. Delay can be specified");
+		public ConfigValue<TimeSpan> AloneDelay { get; } = new ConfigValue<TimeSpan>("alone_delay", TimeSpan.Zero,
+			"Specifies how long the bot has to be alone until the 'onalone' event gets fired.\n" +
+			"You can specify the time in the ISO-8601 format \"PT30S\" or like: 15s, 1h, 3m30s");
+		public ConfigValue<string> OnParty { get; } = new ConfigValue<string>("onparty", "",
+			"Called when the bot was alone and a client joins his channel. Delay can be specified.");
+		public ConfigValue<TimeSpan> PartyDelay { get; } = new ConfigValue<TimeSpan>("party_delay", TimeSpan.Zero,
+			"Specifies how long the bot has to be alone until the 'onalone' event gets fired.\n" +
+			"You can specify the time in the ISO-8601 format \"PT30S\" or like: 15s, 1h, 3m30s");
+		public ConfigValue<string> OnSongStart { get; } = new ConfigValue<string>("onsongstart", "",
+			"Called when a new song starts.");
 	}
 
 	// Utility config structs
@@ -257,13 +312,13 @@ namespace TS3AudioBot.Config
 		public ConfigValue<bool> Hashed { get; } = new ConfigValue<bool>("hashed", false);
 		public ConfigValue<bool> AutoHash { get; } = new ConfigValue<bool>("autohash", false);
 
-		public TS3Client.Password Get()
+		public TSLib.Password Get()
 		{
 			if (string.IsNullOrEmpty(Password))
-				return TS3Client.Password.Empty;
+				return TSLib.Password.Empty;
 			var pass = Hashed
-				? TS3Client.Password.FromHash(Password)
-				: TS3Client.Password.FromPlain(Password);
+				? TSLib.Password.FromHash(Password)
+				: TSLib.Password.FromPlain(Password);
 			if (AutoHash && !Hashed)
 			{
 				Password.Value = pass.HashedPassword;
@@ -280,5 +335,41 @@ namespace TS3AudioBot.Config
 		public ConfigValue<string> Build { get; } = new ConfigValue<string>("build", string.Empty);
 		public ConfigValue<string> Platform { get; } = new ConfigValue<string>("platform", string.Empty);
 		public ConfigValue<string> Sign { get; } = new ConfigValue<string>("sign", string.Empty);
+	}
+
+	public static class ConfTimeExtensions
+	{
+		public static TimeSpan? GetValueAsTime(this ConfigArray<string> conf, int index)
+		{
+			var value = conf.Value;
+			if (value.Count == 0)
+				return null;
+			var last = value[^1];
+			var repeat = last == "repeat" || last == "repeat last"; // "repeat" might get removed for other loops, but for now keep as hidden alternative
+			var max = repeat ? value.Count - 2 : value.Count - 1;
+			if (index <= max)
+				return TextUtil.ParseTime(value[index]);
+			else
+				return TextUtil.ParseTime(value[max]);
+		}
+
+		public static E<string> ValidateTime(IReadOnlyList<string> value)
+		{
+			if (value.Count == 0)
+				return R.Ok;
+			var last = value[^1];
+			var repeat = last == "repeat" || last == "repeat last";
+			if (repeat && value.Count == 1)
+				return $"Specified 'repeat' without any previous value.";
+
+			var max = repeat ? value.Count - 2 : value.Count - 1;
+			for (int i = 0; i <= max; i++)
+			{
+				var r = TextUtil.ValidateTime(value[i]);
+				if (!r.Ok)
+					return r;
+			}
+			return R.Ok;
+		}
 	}
 }

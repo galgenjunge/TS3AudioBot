@@ -7,13 +7,13 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Nett;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+
 namespace TS3AudioBot.Config
 {
-	using Nett;
-	using System.Collections.Generic;
-	using System.Diagnostics;
-	using System.Linq;
-
 	[DebuggerDisplay("table:{Key}")]
 	public abstract class ConfigTable : ConfigEnumerable
 	{
@@ -36,10 +36,10 @@ namespace TS3AudioBot.Config
 		private void GetMember()
 		{
 			Properties.Clear();
-			Properties.AddRange(GetConfigPartProperties().Select(x => (ConfigPart)x.GetValue(this)));
+			Properties.AddRange(GetConfigPartProperties().Select(x => (ConfigPart)x.GetValue(this)!));
 		}
 
-		public override void FromToml(TomlObject tomlObject)
+		public override void FromToml(TomlObject? tomlObject)
 		{
 			base.FromToml(tomlObject);
 
@@ -54,13 +54,13 @@ namespace TS3AudioBot.Config
 		{
 			foreach (var prop in GetConfigPartProperties())
 			{
-				var self = (ConfigPart)prop.GetValue(this);
-				var other = (ConfigPart)prop.GetValue(derived);
+				var self = (ConfigPart)prop.GetValue(this)!;
+				var other = (ConfigPart)prop.GetValue(derived)!;
 				self.Derive(other);
 			}
 		}
 
-		public override ConfigPart GetChild(string key) => Properties.FirstOrDefault(x => x.Key == key);
+		public override ConfigPart? GetChild(string key) => Properties.Find(x => x.Key == key);
 
 		public override IEnumerable<ConfigPart> GetAllChildren() => Properties;
 	}

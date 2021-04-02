@@ -7,14 +7,15 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using System.Collections.Generic;
+
 namespace TS3AudioBot.Web.Api
 {
-	using System;
-
-	public class JsonArray<T> : JsonValue<T[]>
+	public class JsonArray<T> : JsonValue<IList<T>>
 	{
-		public JsonArray(T[] value, string msg) : base(value, msg) { }
-		public JsonArray(T[] value, Func<T[], string> asString = null)
+		public JsonArray(IList<T> value, string msg) : base(value, msg) { }
+		public JsonArray(IList<T> value, Func<IList<T>, string>? asString = null)
 			: base(value, asString)
 		{ }
 	}

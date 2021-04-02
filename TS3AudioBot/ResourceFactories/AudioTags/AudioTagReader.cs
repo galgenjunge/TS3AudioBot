@@ -7,21 +7,20 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
 namespace TS3AudioBot.ResourceFactories.AudioTags
 {
-	using System;
-	using System.Collections.Generic;
-	using System.IO;
-	using System.Text;
-
 	internal static class AudioTagReader
 	{
 		private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
-		private static readonly Dictionary<string, Tag> TagDict;
+		private static readonly Dictionary<string, Tag> TagDict = new Dictionary<string, Tag>();
 
 		static AudioTagReader()
 		{
-			TagDict = new Dictionary<string, Tag>();
 			Register(new Id3_1());
 			Register(new Id3_2());
 		}
@@ -31,7 +30,7 @@ namespace TS3AudioBot.ResourceFactories.AudioTags
 			TagDict.Add(tagHeader.TagId, tagHeader);
 		}
 
-		public static HeaderData GetData(Stream fileStream)
+		public static HeaderData? GetData(Stream fileStream)
 		{
 			var sr = new BinaryReader(fileStream);
 			string tag = Encoding.ASCII.GetString(sr.ReadBytes(3));
@@ -88,6 +87,7 @@ namespace TS3AudioBot.ResourceFactories.AudioTags
 			public override string TagId => "ID3";
 
 			// ReSharper disable UnusedVariable
+#pragma warning disable IDE0059 // Unnecessary assignment of a value
 			public override HeaderData GetData(BinaryReader fileStream)
 			{
 				var retdata = new HeaderData();
@@ -193,9 +193,10 @@ namespace TS3AudioBot.ResourceFactories.AudioTags
 
 				return retdata;
 			}
+#pragma warning restore IDE0059 // Unnecessary assignment of a value
 			// ReSharper restore UnusedVariable
 
-			private static int ReadNullTermString(BinaryReader fileStream, byte encoding, List<byte> text)
+			private static int ReadNullTermString(BinaryReader fileStream, byte encoding, List<byte>? text)
 			{
 				bool unicode = encoding == 1 || encoding == 2;
 
@@ -226,19 +227,14 @@ namespace TS3AudioBot.ResourceFactories.AudioTags
 			private static readonly Encoding UnicodeBeEncoding = new UnicodeEncoding(true, false);
 			private static Encoding GetEncoding(byte type)
 			{
-				switch (type)
+				return type switch
 				{
-				case 0:
-					return Encoding.GetEncoding(28591);
-				case 1:
-					return Encoding.Unicode;
-				case 2:
-					return UnicodeBeEncoding;
-				case 3:
-					return Encoding.UTF8;
-				default:
-					throw new FormatException("The id3 tag is damaged");
-				}
+					0 => Encoding.GetEncoding(28591),
+					1 => Encoding.Unicode,
+					2 => UnicodeBeEncoding,
+					3 => Encoding.UTF8,
+					_ => throw new FormatException("The id3 tag is damaged"),
+				};
 			}
 
 			private static string DecodeString(byte type, byte[] textBuffer, int offset, int length)
@@ -260,7 +256,7 @@ namespace TS3AudioBot.ResourceFactories.AudioTags
 
 	internal class HeaderData
 	{
-		public string Title { get; set; }
-		public byte[] Picture { get; set; }
+		public string? Title { get; set; }
+		public byte[]? Picture { get; set; }
 	}
 }

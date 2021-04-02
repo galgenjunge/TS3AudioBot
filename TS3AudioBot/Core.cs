@@ -7,137 +7,100 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using NLog;
+using System;
+using System.Threading.Tasks;
+using TS3AudioBot.CommandSystem;
+using TS3AudioBot.Config;
+using TS3AudioBot.Dependency;
+using TS3AudioBot.Environment;
+using TS3AudioBot.Helper;
+using TS3AudioBot.Plugins;
+using TS3AudioBot.ResourceFactories;
+using TS3AudioBot.Rights;
+using TS3AudioBot.Sessions;
+using TS3AudioBot.Web;
+using TSLib.Scheduler;
+
 namespace TS3AudioBot
 {
-	using CommandSystem;
-	using Config;
-	using Dependency;
-	using Helper;
-	using NLog;
-	using Plugins;
-	using ResourceFactories;
-	using Rights;
-	using Sessions;
-	using System;
-	using System.Threading;
-	using Web;
-
-	public sealed class Core : IDisposable
+	public sealed class Core
 	{
 		private static readonly Logger Log = LogManager.GetCurrentClassLogger();
-		private const string DefaultConfigFileName = "ts3audiobot.toml";
 		private readonly string configFilePath;
 		private bool forceNextExit;
+		private readonly DedicatedTaskScheduler scheduler;
+		private readonly CoreInjector injector;
 
-		public DateTime StartTime { get; }
-		public Helper.Environment.SystemMonitor SystemMonitor { get; }
-
-		/// <summary>General purpose persistant storage for internal modules.</summary>
-		internal DbStore Database { get; set; }
-		/// <summary>Manages plugins, provides various loading and unloading mechanisms.</summary>
-		internal PluginManager PluginManager { get; set; }
-		/// <summary>Manages factories which can load resources.</summary>
-		public ResourceFactoryManager FactoryManager { get; set; }
-		/// <summary>Minimalistic webserver hosting the api and web-interface.</summary>
-		public WebServer WebManager { get; set; }
-		/// <summary>Management of conntected Bots.</summary>
-		public BotManager Bots { get; set; }
-
-		internal static void Main(string[] args)
+		public Core(DedicatedTaskScheduler scheduler, string? configFilePath = null)
 		{
-			Thread.CurrentThread.Name = "TAB Main";
-
-			var setup = Setup.ReadParameter(args);
-
-			if (setup.Exit == ExitType.Immediately)
-				return;
-
-			if (!setup.SkipVerifications && !Setup.VerifyAll())
-				return;
-
-			if (!setup.HideBanner)
-				Setup.LogHeader();
-
-			// Initialize the actual core
-			var core = new Core(setup.ConfigFile);
-			AppDomain.CurrentDomain.UnhandledException += core.ExceptionHandler;
-			Console.CancelKeyPress += core.ConsoleInterruptHandler;
-
-			var initResult = core.Run(!setup.NonInteractive);
-			if (!initResult)
-			{
-				Log.Error("Core initialization failed: {0}", initResult.Error);
-				core.Dispose();
-			}
-		}
-
-		public Core(string configFilePath = null)
-		{
+			this.scheduler = scheduler;
 			// setting defaults
-			this.configFilePath = configFilePath ?? DefaultConfigFileName;
+			this.configFilePath = configFilePath ?? FilesConst.CoreConfig;
 
-			StartTime = Util.GetNow();
-			SystemMonitor = new Helper.Environment.SystemMonitor();
-			SystemMonitor.StartTimedSnapshots();
+			injector = new CoreInjector();
 		}
 
-		private E<string> Run(bool interactive = false)
+		public async Task Run(ParameterData setup)
 		{
-			var configResult = ConfRoot.OpenOrCreate(configFilePath);
-			if (!configResult.Ok)
-				return "Could not create config";
-			ConfRoot config = configResult.Value;
-			Config.Deprecated.UpgradeScript.CheckAndUpgrade(config);
+			scheduler.VerifyOwnThread();
 
-			var injector = new CoreInjector();
+			AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
+			TaskScheduler.UnobservedTaskException += UnobservedTaskExceptionHandler;
+			Console.CancelKeyPress += ConsoleInterruptHandler;
 
-			injector.RegisterType<Core>();
-			injector.RegisterType<ConfRoot>();
-			injector.RegisterType<CoreInjector>();
-			injector.RegisterType<DbStore>();
-			injector.RegisterType<PluginManager>();
-			injector.RegisterType<CommandManager>();
-			injector.RegisterType<ResourceFactoryManager>();
-			injector.RegisterType<WebServer>();
-			injector.RegisterType<RightsManager>();
-			injector.RegisterType<BotManager>();
-			injector.RegisterType<TokenManager>();
+			var config = ConfRoot.OpenOrCreate(configFilePath);
+			if (config is null)
+				throw new Exception("Could not create config");
+			ConfigUpgrade2.Upgrade(config.Configs.BotsPath.Value);
+			config.Save();
 
-			injector.RegisterModule(this);
-			injector.RegisterModule(config);
-			injector.RegisterModule(injector);
-			injector.RegisterModule(new DbStore(config.Db));
-			injector.RegisterModule(new PluginManager(config.Plugins));
-			injector.RegisterModule(new CommandManager(), x => x.Initialize());
-			injector.RegisterModule(new ResourceFactoryManager(config.Factories), x => x.Initialize());
-			injector.RegisterModule(new WebServer(config.Web), x => x.Initialize());
-			injector.RegisterModule(new RightsManager(config.Rights));
-			injector.RegisterModule(new BotManager());
-			injector.RegisterModule(new TokenManager(), x => x.Initialize());
+			var builder = new DependencyBuilder(injector);
 
-			if (!injector.AllResolved())
-			{
-				Log.Debug("Cyclic core module dependency");
-				injector.ForceCyclicResolve();
-				if (!injector.AllResolved())
-				{
-					Log.Error("Missing core module dependency");
-					return "Could not load all core modules";
-				}
-			}
+			injector.AddModule(this);
+			injector.AddModule(scheduler);
+			injector.AddModule(injector);
+			injector.AddModule(config);
+			injector.AddModule(config.Db);
+			injector.AddModule(config.Plugins);
+			injector.AddModule(config.Web);
+			injector.AddModule(config.Web.Interface);
+			injector.AddModule(config.Web.Api);
+			injector.AddModule(config.Rights);
+			injector.AddModule(config.Factories);
+			builder.RequestModule<SystemMonitor>();
+			builder.RequestModule<DbStore>();
+			builder.RequestModule<PluginManager>();
+			builder.RequestModule<WebServer>();
+			builder.RequestModule<RightsManager>();
+			builder.RequestModule<BotManager>();
+			builder.RequestModule<TokenManager>();
+			builder.RequestModule<CommandManager>();
+			builder.RequestModule<ResourceResolver>();
+			builder.RequestModule<Stats>();
 
+			if (!builder.Build())
+				throw new Exception("Could not load all core modules");
+
+			Upgrader.PerformUpgrades(injector);
 			YoutubeDlHelper.DataObj = config.Tools.YoutubeDl;
 
-			Bots.RunBots(interactive);
-
-			return R.Ok;
+			injector.GetModuleOrThrow<CommandManager>().RegisterCollection(MainCommands.Bag);
+			injector.GetModuleOrThrow<RightsManager>().CreateConfigIfNotExists(setup.Interactive);
+			injector.GetModuleOrThrow<WebServer>().StartWebServer();
+			injector.GetModuleOrThrow<Stats>().StartTimer(setup.SendStats);
+			await injector.GetModuleOrThrow<BotManager>().RunBots(setup.Interactive);
 		}
 
-		public void ExceptionHandler(object sender, UnhandledExceptionEventArgs e)
+		public void UnhandledExceptionHandler(object sender, UnhandledExceptionEventArgs e)
 		{
 			Log.Fatal(e.ExceptionObject as Exception, "Critical program failure!");
-			Dispose();
-			Environment.Exit(-1);
+			StopAsync().RunSynchronously();
+		}
+
+		public static void UnobservedTaskExceptionHandler(object? sender, UnobservedTaskExceptionEventArgs e)
+		{
+			Log.Error(e.Exception, "Unobserved Task error!");
 		}
 
 		public void ConsoleInterruptHandler(object sender, ConsoleCancelEventArgs e)
@@ -149,36 +112,32 @@ namespace TS3AudioBot
 					Log.Info("Got interrupt signal, trying to soft-exit.");
 					e.Cancel = true;
 					forceNextExit = true;
-					Dispose();
+					Stop();
 				}
 				else
 				{
 					Log.Info("Got multiple interrupt signals, trying to force-exit.");
-					Environment.Exit(0);
+					System.Environment.Exit(0);
 				}
 			}
 		}
 
-		public void Dispose()
+		public void Stop() => _ = scheduler.InvokeAsync(StopAsync);
+
+		private async Task StopAsync()
 		{
 			Log.Info("TS3AudioBot shutting down.");
 
-			Bots?.Dispose();
-			Bots = null;
+			var botManager = injector.GetModule<BotManager>();
+			if (botManager != null)
+				await botManager.StopBots();
+			injector.GetModule<PluginManager>()?.Dispose();
+			injector.GetModule<WebServer>()?.Dispose();
+			injector.GetModule<DbStore>()?.Dispose();
+			injector.GetModule<ResourceResolver>()?.Dispose();
+			injector.GetModule<DedicatedTaskScheduler>()?.Dispose();
 
-			PluginManager?.Dispose(); // before: SessionManager,
-			PluginManager = null;
-
-			WebManager?.Dispose(); // before:
-			WebManager = null;
-
-			Database?.Dispose(); // before:
-			Database = null;
-
-			FactoryManager?.Dispose(); // before:
-			FactoryManager = null;
-
-			TickPool.Close();
+			Log.Info("Bye");
 		}
 	}
 }

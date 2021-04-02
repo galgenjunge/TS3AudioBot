@@ -7,18 +7,43 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System.Text;
+
 namespace TS3AudioBot.CommandSystem.Ast
 {
-	using System.Text;
-
 	internal class AstValue : AstNode
 	{
-		public override AstType Type => AstType.Value;
-		public string Value { get; set; }
+		private string? value;
+		private string? tailString;
 
-		public void BuildValue()
+		public override AstType Type => AstType.Value;
+		public StringType StringType { get; }
+		public int TailLength { get; set; }
+
+		public string Value
 		{
-			Value = FullRequest.Substring(Position, Length);
+			get => value ??= FullRequest.Substring(Position, Length);
+			set { this.value = value; tailString = value; }
+		}
+
+		public string TailString
+		{
+			get
+			{
+				if (tailString is null)
+				{
+					if (TailLength == 0)
+						tailString = FullRequest.Substring(Position);
+					else
+						tailString = FullRequest.Substring(Position, TailLength);
+				}
+				return tailString;
+			}
+		}
+
+		public AstValue(string fullRequest, StringType stringType) : base(fullRequest)
+		{
+			StringType = stringType;
 		}
 
 		public override void Write(StringBuilder strb, int depth) => strb.Space(depth).Append(Value);

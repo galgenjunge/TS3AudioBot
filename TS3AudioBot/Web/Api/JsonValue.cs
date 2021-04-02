@@ -7,28 +7,23 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Newtonsoft.Json;
+using System;
+using TS3AudioBot.CommandSystem;
+
 namespace TS3AudioBot.Web.Api
 {
-	using CommandSystem;
-	using Newtonsoft.Json;
-	using System;
-
-	public class JsonValue<T> : JsonValue
+	public class JsonValue<T> : JsonValue where T : notnull
 	{
-		protected Func<T, string> AsString { get; }
+		protected Func<T, string>? AsString { get; }
 
 		new public T Value => (T)base.Value;
 
 		public JsonValue(T value) : base(value) { }
 		public JsonValue(T value, string msg) : base(value, msg) { }
-		public JsonValue(T value, Func<T, string> asString = null) : base(value)
+		public JsonValue(T value, Func<T, string>? asString) : base(value)
 		{
 			AsString = asString;
-		}
-
-		public override object GetSerializeObject()
-		{
-			return Value;
 		}
 
 		public override string ToString()
@@ -37,10 +32,8 @@ namespace TS3AudioBot.Web.Api
 			{
 				if (AsString != null)
 					AsStringResult = AsString.Invoke(Value);
-				else if (Value == null)
-					AsStringResult = string.Empty;
 				else
-					AsStringResult = Value.ToString();
+					AsStringResult = Value?.ToString() ?? string.Empty;
 			}
 			return AsStringResult;
 		}
@@ -48,17 +41,18 @@ namespace TS3AudioBot.Web.Api
 
 	public abstract class JsonValue : JsonObject
 	{
-		protected object Value { get; }
+		protected string? AsStringResult { get; set; }
+		public object Value { get; }
 
-		protected JsonValue(object value) : base(null) { Value = value; }
-		protected JsonValue(object value, string msg) : base(msg ?? string.Empty) { Value = value; }
+		protected JsonValue(object value) { Value = value; AsStringResult = null; }
+		protected JsonValue(object value, string msg) { Value = value; AsStringResult = msg ?? string.Empty; }
 
 		public override object GetSerializeObject() => Value;
 
 		public override string Serialize()
 		{
 			var seriObj = GetSerializeObject();
-			if (seriObj != null && XCommandSystem.BasicTypes.Contains(seriObj.GetType()))
+			if (seriObj != null && CommandSystemTypes.BasicTypes.Contains(seriObj.GetType()))
 				return JsonConvert.SerializeObject(this);
 			return base.Serialize();
 		}
@@ -72,8 +66,8 @@ namespace TS3AudioBot.Web.Api
 
 		// static creator methods for anonymous stuff
 
-		public static JsonValue<T> Create<T>(T anon) => new JsonValue<T>(anon);
-		public static JsonValue<T> Create<T>(T anon, string msg) => new JsonValue<T>(anon, msg);
-		public static JsonValue<T> Create<T>(T anon, Func<T, string> asString = null) => new JsonValue<T>(anon, asString);
+		public static JsonValue<T> Create<T>(T anon) where T : notnull => new JsonValue<T>(anon);
+		public static JsonValue<T> Create<T>(T anon, string msg) where T : notnull => new JsonValue<T>(anon, msg);
+		public static JsonValue<T> Create<T>(T anon, Func<T, string>? asString) where T : notnull => new JsonValue<T>(anon, asString);
 	}
 }

@@ -19,7 +19,7 @@ namespace TS3AudioBot.Localization {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "16.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class strings {
@@ -79,11 +79,38 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Generates an api nonce..
+        ///   Looks up a localized string similar to Creates a new command alias..
         /// </summary>
-        internal static string cmd_api_nonce_help {
+        internal static string cmd_alias_add_help {
             get {
-                return ResourceManager.GetString("cmd_api_nonce_help", resourceCulture);
+                return ResourceManager.GetString("cmd_alias_add_help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lists all currently registered alias..
+        /// </summary>
+        internal static string cmd_alias_list_help {
+            get {
+                return ResourceManager.GetString("cmd_alias_list_help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Removes an existing alias..
+        /// </summary>
+        internal static string cmd_alias_remove_help {
+            get {
+                return ResourceManager.GetString("cmd_alias_remove_help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shows the implementation of the alias..
+        /// </summary>
+        internal static string cmd_alias_show_help {
+            get {
+                return ResourceManager.GetString("cmd_alias_show_help", resourceCulture);
             }
         }
         
@@ -268,7 +295,7 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Switches the conetext to the requested bot..
+        ///   Looks up a localized string similar to Switches the context to the requested bot..
         /// </summary>
         internal static string cmd_bot_use_help {
             get {
@@ -721,6 +748,15 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Jumps to the requested index in the current queue and starts playing..
+        /// </summary>
+        internal static string cmd_jump_help {
+            get {
+                return ResourceManager.GetString("cmd_jump_help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Guess what?.
         /// </summary>
         internal static string cmd_kickme_help {
@@ -757,7 +793,7 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Clears your private playlist..
+        ///   Looks up a localized string similar to Clears a playlist..
         /// </summary>
         internal static string cmd_list_clear_help {
             get {
@@ -996,6 +1032,15 @@ namespace TS3AudioBot.Localization {
         internal static string cmd_pm_hi {
             get {
                 return ResourceManager.GetString("cmd_pm_hi", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Writes a message to a particular user..
+        /// </summary>
+        internal static string cmd_pm_user_help {
+            get {
+                return ResourceManager.GetString("cmd_pm_user_help", resourceCulture);
             }
         }
         
@@ -1252,6 +1297,24 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Found the following songs. Use &quot;{0}&quot; to play. Use &quot;{1}&quot; to queue..
+        /// </summary>
+        internal static string cmd_search_header {
+            get {
+                return ResourceManager.GetString("cmd_search_header", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Found no results for this query..
+        /// </summary>
+        internal static string cmd_search_no_result {
+            get {
+                return ResourceManager.GetString("cmd_search_no_result", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Jumps to a timemark within the current song..
         /// </summary>
         internal static string cmd_seek_help {
@@ -1275,6 +1338,15 @@ namespace TS3AudioBot.Localization {
         internal static string cmd_seek_out_of_range {
             get {
                 return ResourceManager.GetString("cmd_seek_out_of_range", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Selects a song from a previous search and plays it..
+        /// </summary>
+        internal static string cmd_select_help {
+            get {
+                return ResourceManager.GetString("cmd_select_help", resourceCulture);
             }
         }
         
@@ -1423,6 +1495,15 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Subscribes the specified client to listen from anywhere.
+        /// </summary>
+        internal static string cmd_subscribe_client_help {
+            get {
+                return ResourceManager.GetString("cmd_subscribe_client_help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Lets you hear the music independent from the channel you are in..
         /// </summary>
         internal static string cmd_subscribe_help {
@@ -1464,6 +1545,15 @@ namespace TS3AudioBot.Localization {
         internal static string cmd_unsubscribe_channel_help {
             get {
                 return ResourceManager.GetString("cmd_unsubscribe_channel_help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unsubscribes the specified client to listen from anywhere..
+        /// </summary>
+        internal static string cmd_unsubscribe_client_help {
+            get {
+                return ResourceManager.GetString("cmd_unsubscribe_client_help", resourceCulture);
             }
         }
         
@@ -1693,7 +1783,7 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to An unexpected error occured: {0}.
+        ///   Looks up a localized string similar to An unexpected error occurred: {0}.
         /// </summary>
         internal static string error_call_unexpected_error {
             get {
@@ -1743,6 +1833,15 @@ namespace TS3AudioBot.Localization {
         internal static string error_cmd_at_least_two_argument {
             get {
                 return ResourceManager.GetString("error_cmd_at_least_two_argument", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The command exceeded the maximum calling complexity..
+        /// </summary>
+        internal static string error_cmd_complexity_reached {
+            get {
+                return ResourceManager.GetString("error_cmd_complexity_reached", resourceCulture);
             }
         }
         
@@ -2251,6 +2350,15 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Nothing to select....
+        /// </summary>
+        internal static string error_select_empty {
+            get {
+                return ResourceManager.GetString("error_select_empty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Cannot move there..
         /// </summary>
         internal static string error_ts_cannot_move {
@@ -2269,11 +2377,20 @@ namespace TS3AudioBot.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Missing permissions..
+        ///   Looks up a localized string similar to Missing teamspeak permissions..
         /// </summary>
         internal static string error_ts_code_2568 {
             get {
                 return ResourceManager.GetString("error_ts_code_2568", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid channel password..
+        /// </summary>
+        internal static string error_ts_code_781 {
+            get {
+                return ResourceManager.GetString("error_ts_code_781", resourceCulture);
             }
         }
         
@@ -2283,6 +2400,15 @@ namespace TS3AudioBot.Localization {
         internal static string error_ts_error {
             get {
                 return ResourceManager.GetString("error_ts_error", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The file to upload is too big..
+        /// </summary>
+        internal static string error_ts_file_too_big {
+            get {
+                return ResourceManager.GetString("error_ts_file_too_big", resourceCulture);
             }
         }
         
@@ -2337,6 +2463,15 @@ namespace TS3AudioBot.Localization {
         internal static string error_use_private {
             get {
                 return ResourceManager.GetString("error_use_private", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Your value is out of range. Select one between {0} and {1}..
+        /// </summary>
+        internal static string error_value_not_in_range {
+            get {
+                return ResourceManager.GetString("error_value_not_in_range", resourceCulture);
             }
         }
         
@@ -2436,6 +2571,15 @@ namespace TS3AudioBot.Localization {
         internal static string info_empty {
             get {
                 return ResourceManager.GetString("info_empty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to number.
+        /// </summary>
+        internal static string info_number {
+            get {
+                return ResourceManager.GetString("info_number", resourceCulture);
             }
         }
         

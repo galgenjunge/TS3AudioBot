@@ -7,13 +7,13 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Newtonsoft.Json;
+using System;
+using System.IO;
+using System.Text;
+
 namespace TS3AudioBot.Helper
 {
-	using Newtonsoft.Json;
-	using System;
-	using System.IO;
-	using System.Text;
-
 	public interface IJsonSerializable
 	{
 		bool ExpectsString { get; }
@@ -28,11 +28,9 @@ namespace TS3AudioBot.Helper
 			if (jsonConfig.ExpectsString)
 				json = JsonConvert.SerializeObject(json);
 
-			var sr = new StringReader(json);
-			using (var reader = new JsonTextReader(sr))
-			{
-				return jsonConfig.FromJson(reader);
-			}
+			using var sr = new StringReader(json);
+			using var reader = new JsonTextReader(sr);
+			return jsonConfig.FromJson(reader);
 		}
 
 		public static string ToJson(this IJsonSerializable jsonConfig)
@@ -58,15 +56,22 @@ namespace TS3AudioBot.Helper
 			return typeof(IJsonSerializable).IsAssignableFrom(objectType);
 		}
 
-		public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+		public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
 		{
 			throw new NotImplementedException();
 		}
 
-		public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+		public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
 		{
-			var obj = (IJsonSerializable)value;
-			obj.ToJson(writer);
+			if (value is null)
+			{
+				writer.WriteNull();
+			}
+			else
+			{
+				var obj = (IJsonSerializable)value;
+				obj.ToJson(writer);
+			}
 		}
 	}
 }

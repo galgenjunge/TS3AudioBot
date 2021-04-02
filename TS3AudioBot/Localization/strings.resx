@@ -123,9 +123,6 @@
   <data name="cmd_api_token_help" xml:space="preserve">
     <value>Generates an api token.</value>
   </data>
-  <data name="cmd_api_nonce_help" xml:space="preserve">
-    <value>Generates an api nonce.</value>
-  </data>
   <data name="cmd_bot_commander_help" xml:space="preserve">
     <value>Gets the status of the channel commander mode.</value>
   </data>
@@ -160,7 +157,7 @@
     <value>Sets all teamspeak rights for the bot to be fully functional.</value>
   </data>
   <data name="cmd_bot_use_help" xml:space="preserve">
-    <value>Switches the conetext to the requested bot.</value>
+    <value>Switches the context to the requested bot.</value>
   </data>
   <data name="cmd_clear_help" xml:space="preserve">
     <value>Removes all songs from the current playlist.</value>
@@ -271,7 +268,7 @@
     <value>&lt;id&gt; Adds a link to your private playlist from the history by &lt;id&gt;.</value>
   </data>
   <data name="cmd_list_clear_help" xml:space="preserve">
-    <value>Clears your private playlist.</value>
+    <value>Clears a playlist.</value>
   </data>
   <data name="cmd_list_delete_help" xml:space="preserve">
     <value>&lt;name&gt; Deletes the playlist with the name &lt;name&gt;. You can only delete playlists which you also have created. Admins can delete every playlist.</value>
@@ -493,7 +490,7 @@ with the id {1}?</value>
     <value>You are not allowed to delete others playlists.</value>
   </data>
   <data name="cmd_list_delete_confirm" xml:space="preserve">
-    <value>Do you really want to delete the playlist "{0}"</value>
+    <value>Do you really want to delete the playlist "{0}"?</value>
   </data>
   <data name="cmd_list_load_response" xml:space="preserve">
     <value>Loaded "{0}" with {1} songs.</value>
@@ -583,7 +580,7 @@ with the id {1}?</value>
     <value>Error: {0}</value>
   </data>
   <data name="error_call_unexpected_error" xml:space="preserve">
-    <value>An unexpected error occured: {0}</value>
+    <value>An unexpected error occurred: {0}</value>
   </data>
   <data name="error_cmd_at_least_four_argument" xml:space="preserve">
     <value>Need at least four arguments to evaluate.</value>
@@ -838,7 +835,7 @@ with the id {1}?</value>
     <value>Missing session context.</value>
   </data>
   <data name="error_ts_code_2568" xml:space="preserve">
-    <value>Missing permissions.</value>
+    <value>Missing teamspeak permissions.</value>
   </data>
   <data name="cmd_bot_connect_to_help" xml:space="preserve">
     <value>Connects a new bot to the given address.</value>
@@ -941,5 +938,56 @@ with the id {1}?</value>
   </data>
   <data name="cmd_list_item_name_help" xml:space="preserve">
     <value>Renames an item.</value>
+  </data>
+  <data name="error_cmd_complexity_reached" xml:space="preserve">
+    <value>The command exceeded the maximum calling complexity.</value>
+  </data>
+  <data name="cmd_alias_add_help" xml:space="preserve">
+    <value>Creates a new command alias.</value>
+  </data>
+  <data name="cmd_alias_list_help" xml:space="preserve">
+    <value>Lists all currently registered alias.</value>
+  </data>
+  <data name="cmd_alias_remove_help" xml:space="preserve">
+    <value>Removes an existing alias.</value>
+  </data>
+  <data name="cmd_alias_show_help" xml:space="preserve">
+    <value>Shows the implementation of the alias.</value>
+  </data>
+  <data name="cmd_pm_user_help" xml:space="preserve">
+    <value>Writes a message to a particular user.</value>
+  </data>
+  <data name="cmd_search_header" xml:space="preserve">
+    <value>Found the following songs. Use "{0}" to play. Use "{1}" to queue.</value>
+  </data>
+  <data name="cmd_search_no_result" xml:space="preserve">
+    <value>Found no results for this query.</value>
+  </data>
+  <data name="error_select_empty" xml:space="preserve">
+    <value>Nothing to select...</value>
+  </data>
+  <data name="error_value_not_in_range" xml:space="preserve">
+    <value>Your value is out of range. Select one between {0} and {1}.</value>
+  </data>
+  <data name="info_number" xml:space="preserve">
+    <value>number</value>
+  </data>
+  <data name="cmd_select_help" xml:space="preserve">
+    <value>Selects a song from a previous search and plays it.</value>
+  </data>
+  <data name="error_ts_file_too_big" xml:space="preserve">
+    <value>The file to upload is too big.</value>
+  </data>
+  <data name="error_ts_code_781" xml:space="preserve">
+    <value>Invalid channel password.</value>
+  </data>
+  <data name="cmd_subscribe_client_help" xml:space="preserve">
+    <value>Subscribes the specified client to listen from anywhere</value>
+  </data>
+  <data name="cmd_unsubscribe_client_help" xml:space="preserve">
+    <value>Unsubscribes the specified client to listen from anywhere.</value>
+  </data>
+  <data name="cmd_jump_help" xml:space="preserve">
+    <value>Jumps to the requested index in the current queue and starts playing.</value>
   </data>
 </root>

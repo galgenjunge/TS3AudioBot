@@ -7,14 +7,14 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Newtonsoft.Json;
+using System;
+using System.Linq;
+using System.Xml;
+using TS3AudioBot.CommandSystem;
+
 namespace TS3AudioBot.Config
 {
-	using CommandSystem;
-	using Newtonsoft.Json;
-	using System;
-	using System.Linq;
-	using System.Xml;
-
 	public static class ConfigHelper
 	{
 		public const string DefaultBotName = "default";
@@ -40,13 +40,20 @@ namespace TS3AudioBot.Config
 				|| reader.TokenType == JsonToken.Integer
 				|| reader.TokenType == JsonToken.String))
 			{
+				var jValue = reader.Value;
+				if (jValue is null)
+				{
+					value = default!;
+					return "Read null";
+				}
+
 				try
 				{
 					if (typeof(T) == typeof(TimeSpan))
 					{
 						if (reader.TokenType == JsonToken.String)
 						{
-							var timeStr = ((string)reader.Value).ToUpperInvariant();
+							var timeStr = ((string)jValue).ToUpperInvariant();
 							if (!timeStr.StartsWith("P"))
 							{
 								if (!timeStr.Contains("T"))
@@ -62,13 +69,13 @@ namespace TS3AudioBot.Config
 					{
 						if (reader.TokenType == JsonToken.String)
 						{
-							value = (T)Enum.Parse(typeof(T), (string)reader.Value, true);
+							value = (T)Enum.Parse(typeof(T), (string)jValue, true);
 							return R.Ok;
 						}
 					}
 					else
 					{
-						value = (T)Convert.ChangeType(reader.Value, typeof(T));
+						value = (T)Convert.ChangeType(jValue, typeof(T));
 						return R.Ok;
 					}
 				}
@@ -76,9 +83,9 @@ namespace TS3AudioBot.Config
 					(ex is InvalidCastException
 					|| ex is OverflowException
 					|| ex is FormatException)
-				{ /* TODO */ }
+				{ }
 			}
-			value = default;
+			value = default!;
 			return $"Wrong type, expected {typeof(T).Name}, got {reader.TokenType}";
 		}
 	}

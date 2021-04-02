@@ -7,114 +7,244 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using TS3AudioBot.Localization;
+
 namespace TS3AudioBot.Helper
 {
-	using Localization;
-	using System;
-	using System.IO;
-	using System.Net;
-
 	public static class WebWrapper
 	{
 		private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
-		private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
+		public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
+		private const string TimeoutPropertyKey = "RequestTimeout";
 
-		public static E<LocalStr> DownloadString(out string site, Uri link, params (string name, string value)[] optionalHeaders)
+		private static readonly HttpClient httpClient = new HttpClient(new RedirectHandler(new HttpClientHandler()));
+
+		static WebWrapper()
 		{
-			var request = WebRequest.Create(link);
-			foreach (var (name, value) in optionalHeaders)
-				request.Headers.Add(name, value);
+			ServicePointManager.DefaultConnectionLimit = int.MaxValue;
+			httpClient.Timeout = DefaultTimeout;
+			httpClient.DefaultRequestHeaders.UserAgent.Clear();
+			ProductInfoHeaderValue version = ProductInfoHeaderValue.TryParse($"TS3AudioBot/{Environment.SystemData.AssemblyData.Version}", out var v)
+					? v
+					: new ProductInfoHeaderValue("TS3AudioBot", "1.3.3.7");
+			httpClient.DefaultRequestHeaders.UserAgent.Add(version);
+		}
+
+		// Start
+
+		public static HttpRequestMessage Request(string? link) => Request(CreateUri(link));
+		public static HttpRequestMessage Request(Uri uri) => new HttpRequestMessage(HttpMethod.Get, uri);
+
+		// Prepare
+
+		public static HttpRequestMessage WithMethod(this HttpRequestMessage request, HttpMethod method)
+		{
+			request.Method = method;
+			return request;
+		}
+
+		public static HttpRequestMessage WithHeader(this HttpRequestMessage request, string name, string value)
+		{
+			request.Headers.Add(name, value);
+			return request;
+		}
+
+		public static HttpRequestMessage WithTimeout(this HttpRequestMessage request, TimeSpan timeout)
+		{
+			request.Properties[TimeoutPropertyKey] = timeout;
+			return request;
+		}
+
+		// Return
+
+		public static async Task Send(this HttpRequestMessage request)
+		{
 			try
 			{
-				request.Timeout = (int)DefaultTimeout.TotalMilliseconds;
-				using (var response = request.GetResponse())
+				using (request)
 				{
-					var stream = response.GetResponseStream();
-					if (stream is null)
-					{
-						site = null;
-						return new LocalStr(strings.error_net_empty_response);
-					}
-					using (var reader = new StreamReader(stream))
-					{
-						site = reader.ReadToEnd();
-						return R.Ok;
-					}
+					using var response = await httpClient.SendDefaultAsync(request);
 				}
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException)
 			{
-				site = null;
-				return ToLoggedError(ex);
+				throw ToLoggedError(ex);
 			}
 		}
 
-		public static R<string, LocalStr> DownloadString(Uri link, params (string name, string value)[] optionalHeaders)
-			=> DownloadString(out var str, link, optionalHeaders).WithValue(str);
-
-		public static E<LocalStr> GetResponse(Uri link) => GetResponse(link, null);
-		public static E<LocalStr> GetResponse(Uri link, TimeSpan timeout) => GetResponse(link, null, timeout);
-		public static E<LocalStr> GetResponse(Uri link, Action<WebResponse> body) => GetResponse(link, body, DefaultTimeout);
-		public static E<LocalStr> GetResponse(Uri link, Action<WebResponse> body, TimeSpan timeout)
+		public static async Task<string> AsString(this HttpRequestMessage request)
 		{
-			WebRequest request;
-			try { request = WebRequest.Create(link); }
-			catch (NotSupportedException) { return new LocalStr(strings.error_media_invalid_uri); }
-
 			try
 			{
-				request.Timeout = (int)timeout.TotalMilliseconds;
-				using (var response = request.GetResponse())
+				using (request)
 				{
-					body?.Invoke(response);
+					using var response = await httpClient.SendDefaultAsync(request);
+					return await response.Content.ReadAsStringAsync();
 				}
-				return R.Ok;
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException)
 			{
-				return ToLoggedError(ex);
+				throw ToLoggedError(ex);
 			}
 		}
 
-		internal static R<Stream, LocalStr> GetResponseUnsafe(Uri link) => GetResponseUnsafe(link, DefaultTimeout);
-		internal static R<Stream, LocalStr> GetResponseUnsafe(Uri link, TimeSpan timeout)
+		public static async Task<T> AsJson<T>(this HttpRequestMessage request)
 		{
-			WebRequest request;
-			try { request = WebRequest.Create(link); }
-			catch (NotSupportedException) { return new LocalStr(strings.error_media_invalid_uri); }
-
 			try
 			{
-				request.Timeout = (int)timeout.TotalMilliseconds;
-				var stream = request.GetResponse().GetResponseStream();
-				if (stream is null)
-					return new LocalStr(strings.error_net_empty_response);
-				return stream;
+				using (request)
+				{
+					using var response = await httpClient.SendDefaultAsync(request);
+					using var stream = await response.Content.ReadAsStreamAsync();
+					var obj = await JsonSerializer.DeserializeAsync<T>(stream);
+					if (obj is null) throw Error.LocalStr(strings.error_net_empty_response);
+					return obj;
+				}
 			}
-			catch (Exception ex)
+			catch (JsonException ex)
 			{
-				return ToLoggedError(ex);
+				Log.Debug(ex, "Failed to parse json.");
+				throw Error.LocalStr(strings.error_media_internal_invalid + " (json-request)");
+			}
+			catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException)
+			{
+				throw ToLoggedError(ex);
 			}
 		}
 
-		private static LocalStr ToLoggedError(Exception ex)
+		public static async Task ToAction(this HttpRequestMessage request, Func<HttpResponseMessage, Task> body)
 		{
-			if (ex is WebException webEx)
+			try
 			{
-				if (webEx.Status == WebExceptionStatus.Timeout)
+				using (request)
 				{
-					Log.Warn(webEx, "Request timed out");
-					return new LocalStr(strings.error_net_timeout);
+					using var response = await httpClient.SendDefaultAsync(request);
+					await body.Invoke(response);
 				}
-				else if (webEx.Response is HttpWebResponse errorResponse)
+			}
+			catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException)
+			{
+				throw ToLoggedError(ex);
+			}
+		}
+
+		public static async Task<T> ToAction<T>(this HttpRequestMessage request, Func<HttpResponseMessage, Task<T>> body)
+		{
+			try
+			{
+				using (request)
 				{
-					Log.Warn(webEx, "Web error: [{0}] {1}", (int)errorResponse.StatusCode, errorResponse.StatusCode);
-					return new LocalStr($"{strings.error_net_error_status_code} [{(int)errorResponse.StatusCode}] {errorResponse.StatusCode}");
+					using var response = await httpClient.SendDefaultAsync(request);
+					return await body.Invoke(response);
+				}
+			}
+			catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException)
+			{
+				throw ToLoggedError(ex);
+			}
+		}
+
+		public static Task ToStream(this HttpRequestMessage request, Func<Stream, Task> body)
+			=> request.ToAction(async response => await body(await response.Content.ReadAsStreamAsync()));
+
+		public static async Task<HttpResponseMessage> UnsafeResponse(this HttpRequestMessage request)
+		{
+			try
+			{
+				using (request)
+				{
+					var response = await httpClient.SendDefaultAsync(request);
+					return response;
+				}
+			}
+			catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException)
+			{
+				throw ToLoggedError(ex);
+			}
+		}
+
+		public static async Task<Stream> UnsafeStream(this HttpRequestMessage request)
+			=> await (await request.UnsafeResponse()).Content.ReadAsStreamAsync();
+
+		// Util
+
+		public static string? GetSingle(this HttpHeaders headers, string name)
+			=> headers.TryGetValues(name, out var hvals) ? hvals.FirstOrDefault() : null;
+
+		private static async Task<HttpResponseMessage> SendDefaultAsync(this HttpClient client, HttpRequestMessage request)
+		{
+			var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+			CheckOkReturnCodeOrThrow(response);
+			return response;
+		}
+
+		private static AudioBotException ToLoggedError(Exception ex)
+		{
+			if (ex is OperationCanceledException webEx)
+			{
+				Log.Debug(webEx, "Request timed out");
+				throw Error.Exception(ex).LocalStr(strings.error_net_timeout);
+			}
+
+			Log.Debug(ex, "Unknown request error");
+			throw Error.Exception(ex).LocalStr(strings.error_net_unknown);
+		}
+
+		private static Uri CreateUri(string? link)
+		{
+			if (!Uri.TryCreate(link, UriKind.RelativeOrAbsolute, out var uri))
+				throw Error.LocalStr(strings.error_media_invalid_uri);
+			return uri;
+		}
+
+		private static void CheckOkReturnCodeOrThrow(HttpResponseMessage response)
+		{
+			if (!response.IsSuccessStatusCode)
+			{
+				Log.Debug("Web error: [{0}] {1}", (int)response.StatusCode, response.StatusCode);
+				throw Error
+					.LocalStr($"{strings.error_net_error_status_code} [{(int)response.StatusCode}] {response.StatusCode}");
+			}
+		}
+	}
+
+	// HttpClient does not allow unsafe HTTPS->HTTP redirects.
+	// But we don't care because audio streaming is not security critical
+	// This loop implements a simple redirect following on 301/302 with at most 5 redirects.
+	public class RedirectHandler : DelegatingHandler
+	{
+		private const int MaxRedirects = 5;
+
+		public RedirectHandler(HttpMessageHandler innerHandler)
+			: base(innerHandler)
+		{ }
+
+		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		{
+			HttpResponseMessage response;
+			for (int i = 0; i < MaxRedirects; i++)
+			{
+				response = await base.SendAsync(request, cancellationToken);
+				if (response.StatusCode == HttpStatusCode.Moved || response.StatusCode == HttpStatusCode.Redirect)
+				{
+					request.RequestUri = response.Headers.Location;
+				}
+				else
+				{
+					return response;
 				}
 			}
 
-			Log.Warn(ex, "Unknown request error");
-			return new LocalStr(strings.error_net_unknown);
+			throw Error.LocalStr(strings.error_media_internal_invalid + " (Max redirects reached)");
 		}
 	}
 }

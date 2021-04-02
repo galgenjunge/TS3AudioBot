@@ -7,17 +7,17 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System.Linq;
+using TSLib;
+
 namespace TS3AudioBot.Rights.Matchers
 {
-	using System.Linq;
-	using TS3Client;
-
 	internal class MatchVisibility : Matcher
 	{
 		private readonly TextMessageTargetMode[] visibility;
 
 		public MatchVisibility(TextMessageTargetMode[] visibility) => this.visibility = visibility;
 
-		public override bool Matches(ExecuteContext ctx) => ctx.Visibiliy.HasValue && visibility.Contains(ctx.Visibiliy.Value);
+		public override bool Matches(ExecuteContext ctx) => ctx.Visibiliy != null && visibility.Contains(ctx.Visibiliy.Value);
 	}
 }

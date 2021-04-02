@@ -1,65 +1,80 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFrameworks>net46;netcoreapp2.0;netstandard2.0</TargetFrameworks>
-    <LangVersion>7.2</LangVersion>
     <RootNamespace>TS3AudioBot</RootNamespace>
     <AssemblyName>TS3AudioBot</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <LangVersion>8.0</LangVersion>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+    <RollForward>Major</RollForward>
 
+    <Nullable>enable</Nullable>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
+    <DebugType>portable</DebugType>
 
     <ApplicationIcon>Media\favicon.ico</ApplicationIcon>
 
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-
     <NeutralLanguage>en</NeutralLanguage>
 
-    <StartupObject>TS3AudioBot.Core</StartupObject>
-    <CodeAnalysisRuleSet>../TS3AudioBot.ruleset</CodeAnalysisRuleSet>
+    <StartupObject>TS3AudioBot.Setup</StartupObject>
+
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
 
     <RepositoryUrl>https://github.com/Splamy/TS3AudioBot.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
-  </PropertyGroup>
 
-  <PropertyGroup>
-    <UpdateAssemblyInfo>true</UpdateAssemblyInfo>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
     <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Condition="'$(TargetFramework)' == 'net46'" Include="GitVersionTask" Version="3.6.5" />
-    <PackageReference Condition="'$(TargetFramework)' != 'net46'" Include="GitVersionTask" Version="4.0.0" />
+    <PackageReference Include="CliWrap" Version="3.1.0" />
+    <PackageReference Include="CommandLineParser" Version="2.8.0" />
+    <PackageReference Include="NLog" Version="4.7.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="LiteDB" Version="4.1.4" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="2.10.0" />
-    <PackageReference Include="Nett" Version="0.10.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0-beta0005" />
-
-    <PackageReference Condition="'$(TargetFramework)' == 'netcoreapp2.0'" Include="System.Runtime.Loader" Version="4.3.0" />
-    <PackageReference Condition="'$(TargetFramework)' == 'netstandard2.0'" Include="System.Runtime.Loader" Version="4.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.7.0">
+      <ExcludeAssets>analyzers</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Nett" Version="0.15.0" />
+    <PackageReference Include="PlaylistsNET" Version="1.1.2" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0" />
+    <TrimmerRootAssembly Include="System.Text.Json" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="NLog.config">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <SubType>Designer</SubType>
-    </None>
-    <EmbeddedResource Include="Rights\DefaultRights.toml" />
-    <None Include="Media\SleepingKitty.svg" />
+    <EmbeddedResource Include="Resources\DefaultRights.toml" />
     <EmbeddedResource Include="Media\SleepingKitty.png" />
-
-    <CopyLibs32 Include="lib\x86\*.*" />
-    <CopyLibs64 Include="lib\x64\*.*" />
+    <EmbeddedResource Include="Resources\NLog.config">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TS3Client\TS3Client.csproj" />
+    <Content Include="lib\x64\libopus.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackagePath>.</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+    <Content Include="lib\x86\libopus.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackagePath>.</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TSLib\TSLib.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -77,9 +92,21 @@
     </EmbeddedResource>
   </ItemGroup>
 
-  <Target Name="CopyWindowsNativeLibs" AfterTargets="AfterBuild">
-    <Copy SourceFiles="@(CopyLibs32)" DestinationFolder="$(OutputPath)\x86\" />
-    <Copy SourceFiles="@(CopyLibs64)" DestinationFolder="$(OutputPath)\x64\" />
+  <Target Name="GenerateGitVersion" BeforeTargets="BeforeCompile">
+    <ItemGroup>
+      <VersionBuildScript Include="build.csx" />
+      <VersionBuildOutputFile Include="$(IntermediateOutputPath)Version.g.cs" />
+    </ItemGroup>
+    <Exec Command="dotnet tool install --global dotnet-script" IgnoreExitCode="true" />
+    <Exec Command="dotnet tool install --global GitVersion.Tool" IgnoreExitCode="true" />
+    <Exec Command="dotnet script @(VersionBuildScript) -- @(VersionBuildOutputFile) $(Configuration)" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="GitverExit" />
+    </Exec>
+    <ItemGroup Condition="$(GitverExit) == '0'">
+      <FileWrites Include="@(VersionBuildOutputFile)" />
+      <Compile Include="@(VersionBuildOutputFile)">
+        <AutoGen>True</AutoGen>
+      </Compile>
+    </ItemGroup>
   </Target>
-
 </Project>

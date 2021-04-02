@@ -7,34 +7,40 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using TS3AudioBot.Dependency;
+
 namespace TS3AudioBot.CommandSystem.Commands
 {
-	using CommandResults;
-	using System;
-	using System.Collections.Generic;
-
 	/// <summary>
-	/// A special group command that also accepts commands as first parameter and executes them on the left over parameters.
+	/// A special group founction that extracts the root group from the current execution context
 	/// </summary>
-	public class RootCommand : CommandGroup
+	public class RootCommand : ICommand
 	{
-		public override ICommandResult Execute(ExecutionInformation info, IReadOnlyList<ICommand> arguments, IReadOnlyList<CommandResultType> returnTypes)
-		{
-			if (arguments.Count == 0)
-				return base.Execute(info, arguments, returnTypes);
+		private readonly IReadOnlyList<ICommand> internArguments;
 
-			var result = arguments[0].Execute(info, Array.Empty<ICommand>(), XCommandSystem.ReturnCommandOrString);
-			if (result.ResultType == CommandResultType.String)
-			{
-				// Use cached result so we don't execute the first argument twice
-				var passArgs = new ICommand[arguments.Count];
-				passArgs[0] = new StringCommand(((StringCommandResult)result).Content);
-				arguments.CopyTo(1, passArgs, 1);
-				return base.Execute(info, passArgs, returnTypes);
-			}
-			return ((CommandCommandResult)result).Command.Execute(info, arguments.TrySegment(1), returnTypes);
+		public RootCommand(IReadOnlyList<ICommand> arguments)
+		{
+			internArguments = arguments;
 		}
 
-		public override string ToString() => "<root>";
+		public virtual async ValueTask<object?> Execute(ExecutionInformation info, IReadOnlyList<ICommand> arguments)
+		{
+			if (!info.TryGet<CommandManager>(out var cmdSys))
+				throw new CommandException("Could not find local commandsystem tree", CommandExceptionReason.MissingContext);
+
+			IReadOnlyList<ICommand> merged;
+			if (arguments.Count == 0)
+				merged = internArguments;
+			else if (internArguments.Count == 0)
+				merged = arguments;
+			else
+				merged = internArguments.Concat(arguments).ToArray();
+			return await cmdSys.RootGroup.Execute(info, merged);
+		}
+
+		public override string ToString() => $"RootCmd({string.Join(", ", internArguments)})";
 	}
 }

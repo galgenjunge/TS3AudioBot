@@ -7,29 +7,37 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Nett;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+
 namespace TS3AudioBot.Config
 {
-	using Nett;
-	using Newtonsoft.Json;
-	using System;
-	using System.Collections.Generic;
-
 	public abstract class ConfigEnumerable : ConfigPart
 	{
 		private static readonly object EmptyObject = new object();
 
 		protected virtual TomlTable.TableTypes TableType { get => TomlTable.TableTypes.Default; }
+#pragma warning disable CS8618 // !NRT loaded in FromToml
 		public TomlTable TomlObject { get; set; }
+#pragma warning restore CS8618
 		public override bool ExpectsString => false;
 
-		public override void FromToml(TomlObject tomlObject)
+		public override void ClearEvents()
+		{
+			foreach (var child in GetAllChildren())
+				child.ClearEvents();
+		}
+
+		public override void FromToml(TomlObject? tomlObject)
 		{
 			if (tomlObject is null)
 			{
 				if (Parent is null)
 					TomlObject = Toml.Create();
 				else
-					TomlObject = Parent.TomlObject.Add(Key, EmptyObject, TableType);
+					TomlObject = Parent.TomlObject.Add(Key, EmptyObject, TableType).Added;
 			}
 			else
 			{
@@ -71,7 +79,9 @@ namespace TS3AudioBot.Config
 				while (reader.Read()
 					&& (reader.TokenType == JsonToken.PropertyName))
 				{
-					var childName = (string)reader.Value;
+					var childName = (string?)reader.Value;
+					if (childName is null)
+						return "No child found";
 					var child = GetChild(childName);
 					if (child is null)
 					{
@@ -94,7 +104,7 @@ namespace TS3AudioBot.Config
 
 		// Virtual table methods
 
-		public abstract ConfigPart GetChild(string key);
+		public abstract ConfigPart? GetChild(string key);
 
 		public abstract IEnumerable<ConfigPart> GetAllChildren();
 
@@ -109,28 +119,38 @@ namespace TS3AudioBot.Config
 			};
 		}
 
-		protected static T Create<T>(string key, ConfigEnumerable parent, TomlObject fromToml, string doc = "") where T : ConfigEnumerable, new()
+		protected static T Create<T>(string key, ConfigEnumerable? parent, TomlObject? fromToml, string doc = "") where T : ConfigEnumerable, new()
 		{
-			var table = Create<T>(key, doc);
-			table.Parent = parent;
-			table.FromToml(fromToml);
-			return table;
+			return Init(Create<T>(key, doc), parent, fromToml);
 		}
 
-		public static T CreateRoot<T>() where T : ConfigEnumerable, new() => Create<T>(null, null, null, "");
+		protected static T Init<T>(T part, ConfigEnumerable? parent, TomlObject? fromToml) where T : ConfigPart
+		{
+			part.Parent = parent;
+			part.FromToml(fromToml);
+			return part;
+		}
+
+		public static T CreateRoot<T>() where T : ConfigEnumerable, new() => Create<T>(null!, null, null, "");
 
 		public static R<T, Exception> Load<T>(string path) where T : ConfigEnumerable, new()
 		{
 			TomlTable rootToml;
 			try { rootToml = Toml.ReadFile(path); }
 			catch (Exception ex) { return ex; }
-			return Create<T>(null, null, rootToml);
+			return Create<T>(null!, null, rootToml);
 		}
 
 		public E<Exception> Save(string path, bool writeDefaults, bool writeDocumentation = true)
 		{
-			ToToml(writeDefaults, writeDocumentation);
-			try { Toml.WriteFile(TomlObject, path); }
+			try
+			{
+				lock (this)
+				{
+					ToToml(writeDefaults, writeDocumentation);
+					Toml.WriteFile(TomlObject, path);
+				}
+			}
 			catch (Exception ex) { return ex; }
 			return R.Ok;
 		}

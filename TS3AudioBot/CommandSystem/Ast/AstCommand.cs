@@ -7,16 +7,18 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System.Collections.Generic;
+using System.Text;
+
 namespace TS3AudioBot.CommandSystem.Ast
 {
-	using System.Collections.Generic;
-	using System.Text;
-
 	internal class AstCommand : AstNode
 	{
 		public override AstType Type => AstType.Command;
 
 		public List<AstNode> Parameter { get; } = new List<AstNode>();
+
+		public AstCommand(string fullRequest) : base(fullRequest) { }
 
 		public override void Write(StringBuilder strb, int depth)
 		{

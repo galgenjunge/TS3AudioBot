@@ -7,14 +7,14 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+
 namespace TS3AudioBot.History
 {
-	using System;
-
 	public class SeachQuery
 	{
-		public string TitlePart { get; set; }
-		public string UserUid { get; set; }
+		public string? TitlePart { get; set; }
+		public string? UserUid { get; set; }
 		public DateTime? LastInvokedAfter { get; set; }
 		public int MaxResults { get; set; }
 

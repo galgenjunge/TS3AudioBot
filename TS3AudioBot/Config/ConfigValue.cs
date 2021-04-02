@@ -7,20 +7,20 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using Nett;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using TS3AudioBot.Helper;
+
 namespace TS3AudioBot.Config
 {
-	using Nett;
-	using Newtonsoft.Json;
-	using System;
-	using System.Collections.Generic;
-	using System.Diagnostics;
-	using Helper;
-
 	[DebuggerDisplay("{Key}:{Value}")]
-	public class ConfigValue<T> : ConfigPart
+	public class ConfigValue<T> : ConfigPart where T : notnull
 	{
 		public override bool ExpectsString => typeof(T) == typeof(string) || typeof(T) == typeof(TimeSpan) || typeof(T).IsEnum;
-		private ConfigValue<T> backingValue;
+		private ConfigValue<T>? backingValue;
 		private bool hasValue = false;
 		public T Default { get; }
 		private T value;
@@ -47,26 +47,40 @@ namespace TS3AudioBot.Config
 				}
 			}
 		}
+		public Func<T, E<string>>? Validator { get; set; }
 
-		public event EventHandler<ConfigChangedEventArgs<T>> Changed;
+		public event EventHandler<ConfigChangedEventArgs<T>>? Changed;
 
 		public ConfigValue(string key, T defaultVal, string doc = "") : base(key)
 		{
 			Documentation = doc;
 			Default = defaultVal;
+			value = default!;
 		}
 
-		private void InvokeChange(object sender, ConfigChangedEventArgs<T> args) => Changed?.Invoke(sender, args);
+		private void InvokeChange(object? sender, ConfigChangedEventArgs<T> args) => Changed?.Invoke(sender, args);
 
-		public override void FromToml(TomlObject tomlObject)
+		public override void ClearEvents() => Changed = null;
+
+		public override void FromToml(TomlObject? tomlObject)
 		{
-			if (tomlObject != null)
+			if (tomlObject == null)
+				return;
+
+			if (!tomlObject.TryGetValue<T>(out var tomlValue))
 			{
-				if (tomlObject.TryGetValue<T>(out var tomlValue))
-					Value = tomlValue;
-				else
-					Log.Warn("Failed to read '{0}', got {1} with {2}", Key, tomlObject.ReadableTypeName, tomlObject.DumpToJson());
+				Log.Warn("Failed to read '{0}', got {1} with {2}", Key, tomlObject.ReadableTypeName, tomlObject.DumpToJson());
+				return;
 			}
+
+			var validate = Validator?.Invoke(tomlValue) ?? R.Ok;
+			if (!validate.Ok)
+			{
+				Log.Warn("Invalid value in '{0}', {1}", Key, validate.Error);
+				return;
+			}
+
+			Value = tomlValue;
 		}
 
 		public override void ToToml(bool writeDefaults, bool writeDocumentation)
@@ -75,11 +89,14 @@ namespace TS3AudioBot.Config
 			if (Key.StartsWith("_"))
 				return;
 
+			if (Parent is null)
+				throw new InvalidOperationException("Value is not in a tree");
+
 			// Set field if either
 			// - this value is set
 			// - or we explicitely want to write out default values
 			var selfToml = Parent.TomlObject.TryGetValue(Key);
-			if (hasValue || (writeDefaults && selfToml is null)) // TODO optimize: check if existing value is same as Own.Value
+			if (hasValue || (writeDefaults && selfToml is null))
 			{
 				selfToml = Parent.TomlObject.Set(Key, Value);
 			}
@@ -119,7 +136,7 @@ namespace TS3AudioBot.Config
 			catch (JsonReaderException ex) { return $"Could not read value: {ex.Message}"; }
 		}
 
-		public override string ToString() => Value.ToString();
+		public override string ToString() => Value.ToString() ?? "<null>";
 
 		public static implicit operator T(ConfigValue<T> conf) => conf.Value;
 	}

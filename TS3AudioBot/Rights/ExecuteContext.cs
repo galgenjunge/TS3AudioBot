@@ -7,24 +7,26 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using System.Collections.Generic;
+using System.Net;
+using TSLib;
+using TSLib.Messages;
+
 namespace TS3AudioBot.Rights
 {
-	using System;
-	using System.Collections.Generic;
-	using TS3Client;
-	using TS3Client.Messages;
-
 	internal class ExecuteContext
 	{
-		public string Host { get; set; }
-		public ulong[] ServerGroups { get; set; } = Array.Empty<ulong>();
-		public ulong? ChannelGroupId { get; set; }
-		public string ClientUid { get; set; }
+		public string? Host { get; set; }
+		public ServerGroupId[]? ServerGroups { get; set; } = Array.Empty<ServerGroupId>();
+		public ChannelGroupId? ChannelGroupId { get; set; }
+		public Uid ClientUid { get; set; }
 		public bool IsApi { get; set; }
-		public string ApiToken { get; set; }
-		public string Bot { get; set; }
+		public IPAddress? ApiCallerIp { get; set; }
+		public string? ApiToken { get; set; }
+		public string? Bot { get; set; }
 		public TextMessageTargetMode? Visibiliy { get; set; }
-		public PermOverview[] Permissions { get; set; }
+		public PermOverview[]? Permissions { get; set; }
 
 		public List<RightsRule> MatchingRules { get; } = new List<RightsRule>();
 

@@ -7,21 +7,20 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System.Collections.Generic;
+using System.Globalization;
+using System.Reflection;
+using System.Resources;
+using System.Threading;
+
 namespace TS3AudioBot.Localization
 {
-	using System.Collections.Generic;
-	using System.Globalization;
-	using System.Reflection;
-	using System.Resources;
-	using System.Threading;
-
 	internal class DynamicResourceManager : ResourceManager
 	{
 		private readonly Dictionary<string, ResourceSet> dynamicResourceSets = new Dictionary<string, ResourceSet>();
 
 		public DynamicResourceManager(string baseName, Assembly assembly) : base(baseName, assembly)
 		{
-
 		}
 
 		public void SetResourceSet(CultureInfo culture, ResourceSet set)
@@ -29,7 +28,7 @@ namespace TS3AudioBot.Localization
 			dynamicResourceSets[culture.Name] = set;
 		}
 
-		public override ResourceSet GetResourceSet(CultureInfo culture, bool createIfNotExists, bool tryParents)
+		public override ResourceSet? GetResourceSet(CultureInfo culture, bool createIfNotExists, bool tryParents)
 		{
 			if (culture is null)
 			{
@@ -44,19 +43,28 @@ namespace TS3AudioBot.Localization
 			return base.GetResourceSet(culture, createIfNotExists, tryParents);
 		}
 
-		public override string GetString(string name, CultureInfo culture)
+		public override string? GetString(string name, CultureInfo? culture)
 		{
 			if (culture is null)
 			{
 				culture = Thread.CurrentThread.CurrentUICulture;
 			}
 
+			string? str;
 			if (dynamicResourceSets.TryGetValue(culture.Name, out var set))
 			{
-				return set.GetString(name);
+				if ((str = set.GetString(name)) != null)
+					return str;
 			}
 
-			return base.GetString(name, culture);
+			if ((str = base.GetString(name, culture)) != null)
+				return str;
+
+			if ((str = base.GetString(name, CultureInfo.InvariantCulture)) != null)
+				return str;
+
+			//$"The localized entry {name} was not found"
+			return null;
 		}
 	}
 }

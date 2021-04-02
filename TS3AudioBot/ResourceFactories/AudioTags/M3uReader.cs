@@ -7,95 +7,106 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using TSLib.Helper;
+
 namespace TS3AudioBot.ResourceFactories.AudioTags
 {
-	using Playlists;
-	using ResourceFactories;
-	using System;
-	using System.Collections.Generic;
-	using System.IO;
-	using System.Text;
-
-	internal static class M3uReader
+	public static class M3uReader
 	{
 		private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 		private const int MaxLineLength = 4096;
-		private static readonly byte[] ExtM3uLine = Encoding.UTF8.GetBytes("#EXTM3U");
-		private static readonly byte[] ExtInfLine = Encoding.UTF8.GetBytes("#EXTINF");
+		private const int MaxListLength = 1000;
+		private static readonly byte[] ExtM3uLine = Tools.Utf8Encoder.GetBytes("#EXTM3U");
+		private static readonly byte[] ExtInfLine = Tools.Utf8Encoder.GetBytes("#EXTINF");
+		private static readonly byte[] ExtXStreamInfLine = Tools.Utf8Encoder.GetBytes("#EXT-X-STREAM-INF");
 
-		public static R<IReadOnlyList<PlaylistItem>, string> TryGetData(Stream stream)
+		public static async Task<List<M3uEntry>> TryGetData(Stream stream)
 		{
 			int read = 1;
 			int bufferLen = 0;
 			var buffer = new byte[MaxLineLength];
-			var data = new List<PlaylistItem>();
-			string trackTitle = null;
+			var data = new List<M3uEntry>();
+			string? trackTitle = null;
+			string? trackStreamMeta = null;
 			//bool extm3u = false;
 
 			try
 			{
-				while (true)
+				for (int i = 0; i < MaxListLength; i++)
 				{
 					if (read > 0)
 					{
-						read = stream.Read(buffer, bufferLen, MaxLineLength - bufferLen);
+						read = await stream.ReadAsync(buffer, bufferLen, MaxLineLength - bufferLen);
 						bufferLen += read;
 					}
 
 					// find linebreak index
-					int index = Array.IndexOf<byte>(buffer, (byte)'\n', 0, bufferLen);
+					int index = Array.IndexOf(buffer, (byte)'\n', 0, bufferLen);
 					int lb = 1;
 					if (index == -1)
-						index = Array.IndexOf<byte>(buffer, (byte)'\r', 0, bufferLen);
+						index = Array.IndexOf(buffer, (byte)'\r', 0, bufferLen);
 					else if (index > 0 && buffer[index - 1] == (byte)'\r')
 					{
 						index--;
 						lb = 2;
 					}
 
-					ReadOnlySpan<byte> line;
+					ReadOnlyMemory<byte> line;
 					bool atEnd = index == -1;
 					if (atEnd)
 					{
 						if (bufferLen == MaxLineLength)
-							return "Max read buffer exceeded";
-						line = buffer.AsSpan(0, bufferLen);
+							throw Error.Str("Max read buffer exceeded");
+						line = buffer.AsMemory(0, bufferLen);
 						bufferLen = 0;
 					}
 					else
 					{
-						line = buffer.AsSpan(0, index);
+						line = buffer.AsMemory(0, index);
 					}
 
 					if (!line.IsEmpty)
 					{
-						if (line[0] == (byte)'#')
+						if (line.Span[0] == (byte)'#')
 						{
-							if (line.StartsWith(ExtInfLine))
+							if (line.Span.StartsWith(ExtInfLine))
 							{
-								var dataSlice = line.Slice(8);
-								var trackInfo = dataSlice.IndexOf((byte)',');
+								var dataSlice = line.Slice(ExtInfLine.Length + 1);
+								var trackInfo = dataSlice.Span.IndexOf((byte)',');
 								if (trackInfo >= 0)
-									trackTitle = AsString(dataSlice.Slice(trackInfo + 1));
+									trackTitle = dataSlice.Span.Slice(trackInfo + 1).NewUtf8String();
 							}
-							else if (line.StartsWith(ExtM3uLine))
+							else if (line.Span.StartsWith(ExtM3uLine))
 							{
 								//extm3u = true; ???
+							}
+							else if (line.Span.StartsWith(ExtXStreamInfLine))
+							{
+								trackStreamMeta = line.Span.Slice(ExtXStreamInfLine.Length + 1).NewUtf8String();
 							}
 							// else: unsupported m3u tag
 						}
 						else
 						{
-							var lineStr = AsString(line);
+							var lineStr = line.Span.NewUtf8String();
 							if (Uri.TryCreate(lineStr, UriKind.RelativeOrAbsolute, out _))
 							{
-								data.Add(new PlaylistItem(new AudioResource(lineStr, trackTitle ?? lineStr, "media")));
-								trackTitle = null;
+								data.Add(new M3uEntry(
+									trackUrl: lineStr,
+									title: trackTitle,
+									streamMeta: trackStreamMeta)
+								);
 							}
 							else
 							{
 								Log.Debug("Skipping invalid playlist entry ({0})", lineStr);
 							}
+							trackTitle = null;
+							trackStreamMeta = null;
 						}
 					}
 
@@ -109,17 +120,27 @@ namespace TS3AudioBot.ResourceFactories.AudioTags
 					if (atEnd || bufferLen <= 0)
 					{
 						if (bufferLen < 0)
-							return "Unexpected buffer underfill";
+							throw Error.Str("Unexpected buffer underfill");
 						return data;
 					}
 				}
+				throw Error.Str("List too long");
 			}
-			catch { return "Unexpected m3u parsing error"; }
+			catch (Exception ex) { throw Error.Exception(ex).Str("List too long"); }
 		}
+	}
 
-		private static string AsString(ReadOnlySpan<byte> data)
+	public class M3uEntry
+	{
+		public string TrackUrl { get; set; }
+		public string? Title { get; set; }
+		public string? StreamMeta { get; set; }
+
+		public M3uEntry(string trackUrl, string? title, string? streamMeta)
 		{
-			return Encoding.UTF8.GetString(data.ToArray());
+			TrackUrl = trackUrl;
+			Title = title;
+			StreamMeta = streamMeta;
 		}
 	}
 }

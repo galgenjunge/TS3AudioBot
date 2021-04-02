@@ -7,18 +7,29 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System;
+using TS3AudioBot.Audio;
+using TS3AudioBot.CommandSystem.CommandResults;
+using TS3AudioBot.ResourceFactories;
+
 namespace TS3AudioBot.Playlists
 {
-	using ResourceFactories;
-
-	public class PlaylistItem
+	public class PlaylistItem : IAudioResourceResult, IMetaContainer
 	{
-		public MetaData Meta { get; }
-		public AudioResource Resource { get; }
+		public PlayInfo? PlayInfo { get; set; }
+		public AudioResource AudioResource { get; }
 
-		public string DisplayString => Resource.ResourceTitle ?? $"{Resource.AudioType}: {Resource.ResourceId}";
+		public PlaylistItem(AudioResource resource, PlayInfo? meta = null)
+		{
+			AudioResource = resource ?? throw new ArgumentNullException(nameof(resource));
+			PlayInfo = meta;
+		}
 
-		private PlaylistItem(MetaData meta) { Meta = meta ?? new MetaData(); }
-		public PlaylistItem(AudioResource resource, MetaData meta = null) : this(meta) { Resource = resource; }
+		public static PlaylistItem From(PlayResource playResource)
+		{
+			return new PlaylistItem(playResource.AudioResource, playResource.PlayInfo);
+		}
+
+		public override string ToString() => AudioResource.ResourceTitle ?? $"{AudioResource.AudioType}: {AudioResource.ResourceId}";
 	}
 }

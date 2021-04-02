@@ -7,11 +7,11 @@
 // You should have received a copy of the Open Software License along with this
 // program. If not, see <https://opensource.org/licenses/OSL-3.0>.
 
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
 namespace TS3AudioBot.CommandSystem.Commands
 {
-	using CommandResults;
-	using System.Collections.Generic;
-
 	public interface ICommand
 	{
 		/// <summary>Execute this command.</summary>
@@ -23,7 +23,14 @@ namespace TS3AudioBot.CommandSystem.Commands
 		/// <param name="returnTypes">
 		/// The possible return types that should be returned by this execution.
 		/// They are ordered by priority so, if possible, the first return type should be picked, then the second and so on.
+		///
+		/// These types can contain primitive types, the actual return value will then be wrapped into a <see cref="CommandResults.IPrimitiveResult{T}"/>.
+		/// null inside the list allows an empty result.
 		/// </param>
-		ICommandResult Execute(ExecutionInformation info, IReadOnlyList<ICommand> arguments, IReadOnlyList<CommandResultType> returnTypes);
+		/// <returns>
+		/// <para>The result of this command.</para>
+		/// <para>null is an empty result.</para>
+		/// </returns>
+		ValueTask<object?> Execute(ExecutionInformation info, IReadOnlyList<ICommand> arguments);
 	}
 }
